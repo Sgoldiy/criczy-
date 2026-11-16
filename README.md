@@ -1,4 +1,4 @@
-# Pavilion
+# Criczy
 
 A new Android cricket app, built to replace Cricpeak. Working name; check availability on Google Play before release.
 
