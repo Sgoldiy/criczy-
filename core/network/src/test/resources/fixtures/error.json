@@ -1,0 +1,1 @@
+{"ResponseStatus":{"ErrorCode":"GreaterThan","Message":"'Competition Id' must be greater than '0'.","StackTrace":"","Errors":[{"ErrorCode":"GreaterThan","FieldName":"CompetitionId","Message":"'Competition Id' must be greater than '0'.","Meta":{"ComparisonValue":"0","ComparisonProperty":"","PropertyName":"Competition Id","PropertyValue":"0"}}]},"ResponseError":true}
