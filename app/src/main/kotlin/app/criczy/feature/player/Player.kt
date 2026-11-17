@@ -41,6 +41,7 @@ import app.criczy.ui.LocalAppContainer
 import app.criczy.ui.Refreshable
 import app.criczy.ui.WhileUiVisible
 import app.criczy.ui.components.Badge
+import app.criczy.ui.components.PlayerPhoto
 import app.criczy.ui.components.EmptyState
 import app.criczy.ui.components.ErrorState
 import app.criczy.ui.components.Panel
@@ -108,7 +109,7 @@ fun PlayerScreen(state: Loadable<PlayerProfile>, isFavourite: Boolean, onBack: (
                 player == null -> EmptyState("Profile not available", "The score service has no profile for this player.")
                 else -> Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Badge(player.name.split(' ').mapNotNull { it.firstOrNull() }.take(2).joinToString(""), player.imageUrl, null, size = 96.dp)
+                        PlayerPhoto(player.name, player.imageUrl, size = 96.dp)
                         Spacer(Modifier.width(16.dp))
                         Column {
                             Text(player.name, style = MaterialTheme.typography.headlineMedium)

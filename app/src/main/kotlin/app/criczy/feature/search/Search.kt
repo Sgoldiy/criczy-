@@ -135,7 +135,7 @@ fun SearchScreen(
                     if (r.players.isNotEmpty()) {
                         item { Heading("Players") }
                         items(r.players, key = { "p${it.id}" }) { p ->
-                            ResultRow(p.name, listOfNotNull(p.role, p.teamName).joinToString(" · "), p.name, p.imageUrl, null) { onPlayer(p.id) }
+                            ResultRow(p.name, listOfNotNull(p.role, p.teamName).joinToString(" · "), p.name.split(' ').mapNotNull { it.firstOrNull() }.take(2).joinToString(""), p.imageUrl, null, photo = true) { onPlayer(p.id) }
                         }
                     }
                 }
@@ -150,9 +150,9 @@ private fun Heading(text: String) {
 }
 
 @Composable
-private fun ResultRow(title: String, subtitle: String, badge: String, imageUrl: String?, colorHex: String?, onClick: () -> Unit) {
+private fun ResultRow(title: String, subtitle: String, badge: String, imageUrl: String?, colorHex: String?, photo: Boolean = false, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-        Badge(badge, imageUrl, colorHex, size = 38.dp)
+        Badge(badge, imageUrl, colorHex, size = 38.dp, photo = photo)
         Spacer(Modifier.width(12.dp))
         Column {
             Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -117,7 +117,13 @@ import androidx.compose.runtime.setValue
 // ---- commentary ----------------------------------------------------------------------------
 
 @Composable
-internal fun CommentaryTab(detail: MatchDetail, state: CommentaryUiState, actions: MatchActions) {
+internal fun CommentaryTab(
+    detail: MatchDetail,
+    state: CommentaryUiState,
+    actions: MatchActions,
+    focus: String? = null,
+    onFocusHandled: () -> Unit = {},
+) {
     if (!detail.hasCommentary) return TabEmpty("No commentary", "Ball-by-ball commentary isn't provided for this match.")
     var filter by rememberSaveable { mutableStateOf(CommentaryFilter.ALL) }
     Column(Modifier.fillMaxSize()) {
@@ -126,7 +132,7 @@ internal fun CommentaryTab(detail: MatchDetail, state: CommentaryUiState, action
             state.overs.isEmpty() && state.loading -> SkeletonList(count = 6, itemHeight = 64.dp)
             state.overs.isEmpty() && state.error != null -> ErrorState(state.error, actions.onRefresh)
             state.overs.isEmpty() -> TabEmpty("No commentary yet", "Commentary appears here as soon as the first ball is bowled.")
-            else -> CommentaryFeed(detail, state, actions, filter) { filter = it }
+            else -> CommentaryFeed(detail, state, actions, filter, { filter = it }, focus, onFocusHandled)
         }
     }
 }
@@ -138,6 +144,8 @@ private fun CommentaryFeed(
     actions: MatchActions,
     filter: CommentaryFilter,
     onFilter: (CommentaryFilter) -> Unit,
+    focus: String? = null,
+    onFocusHandled: () -> Unit = {},
 ) {
     // One ball or over open at a time; opening another closes the first. Reset per innings.
     var open by rememberSaveable(state.inningsNumber) { mutableStateOf<String?>(null) }
@@ -147,7 +155,16 @@ private fun CommentaryFeed(
     val balls = remember(state.overs) { state.overs.flatMap { it.balls } }
     val counts = remember(balls) { CommentaryFilter.entries.associateWith { f -> balls.count(f::accepts) } }
 
-    LaunchedEffect(state.inningsNumber, filter) { listState.scrollToItem(0) }
+    LaunchedEffect(state.inningsNumber) { if (focus == null) listState.scrollToItem(0) }
+
+    // A ball or over picked on another tab: open it here, in the full list, and bring it up.
+    LaunchedEffect(focus) {
+        val key = focus ?: return@LaunchedEffect
+        onFilter(CommentaryFilter.ALL)
+        open = key
+        feedIndexOf(key, state.overs)?.let { listState.scrollToItem(it) }
+        onFocusHandled()
+    }
 
     // A new ball arrives at the top of the list. Someone reading from the top sees it come in;
     // someone who has scrolled away gets a button back to it instead of losing their place.
@@ -193,7 +210,10 @@ private fun CommentaryFeed(
             CommentaryFilter.entries.forEach { f ->
                 FilterChip(
                     selected = filter == f,
-                    onClick = { onFilter(f) },
+                    onClick = {
+                        onFilter(f)
+                        scope.launch { listState.scrollToItem(0) }
+                    },
                     label = { Text(if (f == CommentaryFilter.ALL) f.label else "${f.label} · ${counts[f]}") },
                 )
             }

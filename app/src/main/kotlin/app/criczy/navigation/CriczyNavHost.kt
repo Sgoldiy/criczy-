@@ -291,7 +291,7 @@ fun CriczyNavHost(navController: NavHostController = rememberNavController()) {
                             Routes.MATCH,
                             arguments = listOf(navArgument("matchId") { type = NavType.IntType }),
                             deepLinks = listOf(navDeepLink { uriPattern = Routes.MATCH_DEEP_LINK }),
-                        ) { MatchRoute(it.arguments!!.getInt("matchId"), onBack, onPlayer, onTeam, onCompetition, onUrl) }
+                        ) { MatchRoute(it.arguments!!.getInt("matchId"), onBack, onPlayer, onTeam, onCompetition, onUrl, onMatch) }
                         composable(
                             Routes.COMPETITION,
                             arguments = listOf(navArgument("competitionId") { type = NavType.IntType }, navArgument("name") { type = NavType.StringType; defaultValue = "" }),

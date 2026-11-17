@@ -3,6 +3,29 @@ package app.criczy.feature.match
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import app.criczy.core.model.PlayerRole
+import app.criczy.ui.components.PlayerPhoto
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,36 +72,64 @@ import app.criczy.ui.format.Formatters
 import app.criczy.ui.theme.ScoreFont
 import app.criczy.ui.theme.cricketColors
 
+/** A squad in the order a team sheet reads: by role, with the bench last. */
+internal fun squadGroups(squad: List<Player>): List<Pair<String, List<Player>>> {
+    val (bench, playing) = squad.partition { it.isSubstitute }
+    val byRole = playing.groupBy { it.role }
+    return listOfNotNull(
+        byRole[PlayerRole.BATTER]?.let { "Batters" to it },
+        byRole[PlayerRole.WICKET_KEEPER]?.let { (if (it.size == 1) "Wicketkeeper" else "Wicketkeepers") to it },
+        byRole[PlayerRole.ALL_ROUNDER]?.let { "All-rounders" to it },
+        byRole[PlayerRole.BOWLER]?.let { "Bowlers" to it },
+        byRole[PlayerRole.UNKNOWN]?.let { "Players" to it },
+        bench.takeIf { it.isNotEmpty() }?.let { "Bench" to it },
+    )
+}
+
 @Composable
 internal fun SquadsTab(detail: MatchDetail, onPlayer: (Int) -> Unit) {
     if (detail.players.isEmpty()) return TabEmpty("Squads not announced", "Teams usually appear here shortly before the toss.")
     var comparing by rememberSaveable { mutableStateOf(false) }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = tabPadding, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (detail.innings.isNotEmpty()) {
-            item {
-                OutlinedButton(onClick = { comparing = true }) {
-                    Icon(Icons.Outlined.CompareArrows, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Compare two players in this match")
-                }
+    val teams = listOf(detail.match.home, detail.match.away).filter { detail.squad(it.id).isNotEmpty() }
+    var selectedId by rememberSaveable { mutableIntStateOf(teams.first().id) }
+    val team = teams.firstOrNull { it.id == selectedId } ?: teams.first()
+    val groups = remember(detail, team.id) { squadGroups(detail.squad(team.id)) }
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(104.dp),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = tabPadding,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        if (teams.size > 1) {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "teams") {
+                TeamSwitch(teams, team.id, detail) { selectedId = it }
             }
         }
-        for (team in listOf(detail.match.home, detail.match.away)) {
-            val squad = detail.squad(team.id)
-            if (squad.isEmpty()) continue
-            item(key = "squad-${team.id}") {
-                Panel {
-                    Column(Modifier.padding(bottom = 8.dp)) {
-                        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Badge(team.shortName, team.logoUrl, team.colorHex, size = 30.dp)
-                            Spacer(Modifier.width(10.dp))
-                            Text(team.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                            Text("${squad.count { !it.isSubstitute }} players", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (detail.innings.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "compare") {
+                Panel(Modifier.clickable(onClickLabel = "Compare players") { comparing = true }) {
+                    Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.CompareArrows, contentDescription = null, tint = cricketColors.accent)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Compare two players in this match", style = MaterialTheme.typography.titleSmall)
+                            Text("Runs, strike rate, wickets and economy side by side", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        squad.forEach { PlayerRow(it, onPlayer) }
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
+        }
+        groups.forEach { (title, players) ->
+            item(span = { GridItemSpan(maxLineSpan) }, key = "group-${team.id}-$title") {
+                Text(
+                    "${title.uppercase()} · ${players.size}",
+                    style = MaterialTheme.typography.titleLarge, fontSize = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp, start = 2.dp),
+                )
+            }
+            items(players, key = { "player-${it.id}" }) { PlayerCard(it, onPlayer) }
         }
     }
     if (comparing) {
@@ -87,26 +138,72 @@ internal fun SquadsTab(detail: MatchDetail, onPlayer: (Int) -> Unit) {
     }
 }
 
+/** Both teams side by side; the one whose squad is shown is lit in the accent. */
 @Composable
-private fun PlayerRow(player: Player, onPlayer: (Int) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClickLabel = "Open player") { onPlayer(player.id) }.padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Badge(player.name.split(' ').mapNotNull { it.firstOrNull() }.take(2).joinToString(""), player.imageUrl, null, size = 36.dp)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(player.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                listOfNotNull(player.roleLabel, player.battingStyle, player.bowlingStyle).joinToString(" · ").ifBlank { "Player" },
-                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
+private fun TeamSwitch(teams: List<app.criczy.core.model.Team>, selected: Int, detail: MatchDetail, onSelect: (Int) -> Unit) {
+    val accent = cricketColors.accent
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        teams.forEach { team ->
+            val chosen = team.id == selected
+            val border by animateColorAsState(if (chosen) accent else MaterialTheme.colorScheme.outlineVariant, label = "teamBorder")
+            val fill by animateColorAsState(if (chosen) accent.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceContainer, label = "teamFill")
+            Row(
+                Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(fill).border(1.5.dp, border, RoundedCornerShape(16.dp))
+                    .selectable(selected = chosen, role = Role.Tab, onClick = { onSelect(team.id) })
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Badge(team.shortName, team.logoUrl, team.colorHex, size = 32.dp)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(team.shortName, fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = if (chosen) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "${detail.squad(team.id).count { !it.isSubstitute }} players",
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                    )
+                }
+            }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (player.isCaptain) Pill("C", container = cricketColors.accent, content = cricketColors.onAccent)
-            if (player.isWicketKeeper) Pill("WK")
-            if (player.isSubstitute) Pill("SUB")
-            if (player.isPlayerOfTheMatch) Pill("POTM", container = cricketColors.win.copy(alpha = 0.2f), content = cricketColors.win)
+    }
+}
+
+/** A player on the team sheet: photo centred on the face, name, and how they bat or bowl. */
+@Composable
+private fun PlayerCard(player: Player, onPlayer: (Int) -> Unit) {
+    val colors = cricketColors
+    val style = when (player.role) {
+        PlayerRole.BOWLER, PlayerRole.ALL_ROUNDER -> player.bowlingStyle ?: player.battingStyle
+        else -> player.battingStyle ?: player.bowlingStyle
+    } ?: player.roleLabel ?: "Player"
+    val tags = listOfNotNull("captain".takeIf { player.isCaptain }, "wicketkeeper".takeIf { player.isWicketKeeper }, "player of the match".takeIf { player.isPlayerOfTheMatch })
+    Panel(
+        Modifier.clickable(onClickLabel = "Open player") { onPlayer(player.id) }
+            .semantics(mergeDescendants = true) { contentDescription = (listOf(player.name) + tags + style).joinToString(", ") },
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(contentAlignment = Alignment.Center) {
+                PlayerPhoto(player.name, player.imageUrl, size = 68.dp)
+                // Captain and keeper marks sit on the photo's lower edge, as on a team sheet.
+                Row(Modifier.align(Alignment.BottomCenter).offset(y = 8.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    if (player.isCaptain) Pill("C", container = colors.accent, content = colors.onAccent)
+                    if (player.isWicketKeeper) Pill("WK", container = MaterialTheme.colorScheme.secondaryContainer, content = MaterialTheme.colorScheme.onSecondaryContainer)
+                }
+                if (player.isPlayerOfTheMatch) {
+                    Icon(
+                        Icons.Filled.Star, contentDescription = null, tint = colors.onAccent,
+                        modifier = Modifier.align(Alignment.TopEnd).size(22.dp).background(colors.accent, CircleShape).padding(3.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Text(
+                player.name, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
+                minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                style, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

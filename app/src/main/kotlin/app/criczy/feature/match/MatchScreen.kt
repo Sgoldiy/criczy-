@@ -70,6 +70,9 @@ import kotlinx.coroutines.launch
 import app.criczy.ui.components.AppTitle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import app.criczy.core.model.Match
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableStateOf
 
 data class MatchActions(
     val onBack: () -> Unit,
@@ -84,6 +87,8 @@ data class MatchActions(
     val onRequestAnalysis: () -> Unit,
     val onRequestHighlights: () -> Unit,
     val onOpenUrl: (String) -> Unit,
+    val onMatch: (Int) -> Unit = {},
+    val onRequestSeries: () -> Unit = {},
 )
 
 @Composable
@@ -94,6 +99,7 @@ fun MatchRoute(
     onTeam: (Int) -> Unit,
     onCompetition: (Int, String) -> Unit,
     onOpenUrl: (String) -> Unit,
+    onMatch: (Int) -> Unit = {},
 ) {
     val container = LocalAppContainer.current
     val context = LocalContext.current
@@ -105,15 +111,17 @@ fun MatchRoute(
     val favourite by vm.isFavourite.collectAsStateWithLifecycle()
     val cached by vm.servingCached.collectAsStateWithLifecycle()
     val event by vm.scoreEvent.collectAsStateWithLifecycle()
+    val series by vm.seriesMatches.collectAsStateWithLifecycle()
     MatchScreen(
         detail = detail, commentary = commentary, analysis = analysis, highlights = highlights,
-        isFavourite = favourite, servingCached = cached, scoreEvent = event,
+        isFavourite = favourite, servingCached = cached, scoreEvent = event, series = series,
         actions = MatchActions(
             onBack = onBack, onRefresh = vm::refresh, onToggleFavourite = vm::toggleFavourite,
             onShare = { ScorecardSharer.share(context, it) },
             onPlayer = onPlayer, onTeam = onTeam, onCompetition = onCompetition,
             onSelectCommentaryInnings = vm::selectCommentaryInnings, onLoadOlderCommentary = vm::loadOlderCommentary,
             onRequestAnalysis = vm::requestAnalysis, onRequestHighlights = vm::requestHighlights, onOpenUrl = onOpenUrl,
+            onMatch = onMatch, onRequestSeries = vm::requestSeries,
         ),
     )
 }
@@ -134,6 +142,7 @@ fun MatchScreen(
     scoreEvent: ScoreEvent?,
     actions: MatchActions,
     initialTab: Int = 0,
+    series: List<Match> = emptyList(),
 ) {
     val data = detail.data?.detail
     Scaffold(
@@ -176,6 +185,12 @@ fun MatchScreen(
                     }
                     val pager = rememberPagerState(initialPage = initialTab.coerceIn(0, tabs.lastIndex)) { tabs.size }
                     val scope = rememberCoroutineScope()
+                    // A ball or over picked elsewhere (the summary's key moments, recent overs) to open in the commentary.
+                    var commentaryFocus by rememberSaveable { mutableStateOf<String?>(null) }
+                    val openInCommentary: (String?) -> Unit = { key ->
+                        commentaryFocus = key
+                        tabs.indexOf(MatchTab.COMMENTARY).takeIf { it >= 0 }?.let { scope.launch { pager.animateScrollToPage(it) } }
+                    }
                     Column(Modifier.fillMaxSize()) {
                         if (servingCached) {
                             StaleBanner("Offline · saved copy" + (Formatters.updatedAgo(detail.updatedAt)?.let { " · ${it.lowercase()}" } ?: ""))
@@ -188,9 +203,12 @@ fun MatchScreen(
                         }
                         HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 0) { page ->
                             when (tabs.getOrNull(page) ?: return@HorizontalPager) {
-                                MatchTab.SUMMARY -> SummaryTab(data, commentary, actions)
+                                MatchTab.SUMMARY -> {
+                                    LaunchedEffect(Unit) { actions.onRequestSeries() }
+                                    SummaryTab(data, commentary, actions, series, openInCommentary)
+                                }
                                 MatchTab.SCORECARD -> ScorecardTab(data, actions.onPlayer)
-                                MatchTab.COMMENTARY -> CommentaryTab(data, commentary, actions)
+                                MatchTab.COMMENTARY -> CommentaryTab(data, commentary, actions, focus = commentaryFocus) { commentaryFocus = null }
                                 MatchTab.ANALYSIS -> {
                                     LaunchedEffect(Unit) { actions.onRequestAnalysis() }
                                     AnalysisTab(data, analysis, actions.onRefresh)

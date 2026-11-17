@@ -46,3 +46,48 @@ internal fun dismissalSentenceStart(body: String): Int {
     val stop = trimmed.dropLast(1).lastIndexOf(". ")
     return if (stop >= 0) stop + 2 else -1
 }
+
+/** A wicket, four or six worth going back to, with the key of its row in the commentary. */
+internal data class KeyMoment(val key: String, val ball: Ball)
+
+/** The latest wickets and boundaries in [overs] (newest first, as the feed holds them). */
+internal fun keyMoments(overs: List<app.criczy.core.model.Over>, limit: Int = 5): List<KeyMoment> =
+    overs.asSequence()
+        .flatMap { over -> over.balls.indices.reversed().asSequence().map { index -> over to index } }
+        .filter { (over, index) -> over.balls[index].let { it.isWicket || CommentaryFilter.BOUNDARIES.accepts(it) } }
+        .take(limit)
+        .map { (over, index) -> KeyMoment("ball-${over.number}-$index", over.balls[index]) }
+        .toList()
+
+/**
+ * Where the row with [key] sits in the full commentary list: each over's row, then its balls
+ * newest first. Null when that ball or over is not loaded.
+ */
+internal fun feedIndexOf(key: String, overs: List<app.criczy.core.model.Over>): Int? {
+    var index = 0
+    for (over in overs) {
+        if (key == "over-${over.number}") return index
+        index++
+        val last = over.balls.lastIndex
+        for (i in 0..last) {
+            if (key == "ball-${over.number}-${last - i}") return index
+            index++
+        }
+    }
+    return null
+}
+
+/** "50", "100", "150"… for a batter past a milestone; null below fifty. */
+internal fun battingMilestone(runs: Int): String? = if (runs >= 50) "${runs / 50 * 50}" else null
+
+/** "4W", "5W"… for a bowler with a haul worth marking; null below four wickets. */
+internal fun bowlingHaul(wickets: Int): String? = if (wickets >= 4) "${wickets}W" else null
+
+/** A player's figures in the match: "33 (42) · 2/17 (4)", from every innings they batted or bowled in. */
+internal fun matchFigures(detail: app.criczy.core.model.MatchDetail, playerId: Int): String? {
+    val batting = detail.innings.flatMap { it.batted }.filter { it.playerId == playerId }
+        .map { "${it.runs}${if (it.isOut) "" else "*"} (${it.balls})" }
+    val bowling = detail.innings.flatMap { it.bowlers }.filter { it.playerId == playerId }
+        .map { "${it.wickets}/${it.runs} (${it.overs})" }
+    return (batting + bowling).joinToString(" · ").ifEmpty { null }
+}

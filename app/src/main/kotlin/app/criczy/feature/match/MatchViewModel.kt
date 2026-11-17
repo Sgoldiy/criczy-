@@ -14,6 +14,8 @@ import app.criczy.core.model.Ball
 import app.criczy.core.model.Highlight
 import app.criczy.core.model.InningsBallByBall
 import app.criczy.core.model.MatchDetail
+import app.criczy.core.model.MatchBoard
+import app.criczy.core.model.Match
 import app.criczy.core.model.MatchState
 import app.criczy.core.model.Over
 import app.criczy.core.network.CricketApiException
@@ -92,6 +94,18 @@ data class CommentaryUiState(
     val canLoadOlder: Boolean = false,
     val loadingOlder: Boolean = false,
 )
+
+/**
+ * What to offer after this match: the series' other matches in play, then the next fixtures,
+ * then the latest results. Filtered to the series here as well, whatever the source returns.
+ */
+internal fun moreFromSeries(board: MatchBoard, exceptId: Int, competitionId: Int, limit: Int = 3): List<Match> {
+    fun Match.belongs() = id != exceptId && competition.id == competitionId
+    val live = board.live.filter { it.belongs() }
+    val next = board.upcoming.filter { it.belongs() }.sortedBy { it.start }
+    val recent = board.completed.filter { it.belongs() }.sortedByDescending { it.start }
+    return (live + next + recent).take(limit)
+}
 
 /** Detects boundaries and wickets by comparing consecutive scorecards of the same innings. */
 internal fun detectScoreEvent(previous: MatchDetail?, current: MatchDetail, id: Long): ScoreEvent? {
@@ -267,6 +281,23 @@ class MatchViewModel(private val matchId: Int, private val container: AppContain
 
     fun requestHighlights() {
         highlightsWanted.value = true
+    }
+
+    // ---- the rest of the series ------------------------------------------------------------
+
+    private val seriesWanted = MutableStateFlow(false)
+
+    /** Other matches of this match's series to offer next: loaded once the summary is shown. */
+    val seriesMatches: StateFlow<List<Match>> =
+        combine(seriesWanted, detailData.map { it?.match?.competition?.id }.distinctUntilChanged()) { wanted, competitionId ->
+            competitionId.takeIf { wanted }
+        }.flatMapLatest { competitionId ->
+            if (competitionId == null) flowOf(emptyList())
+            else loadOnce { container.matches.competitionMatches(competitionId) }.map { loaded -> loaded.data?.let { moreFromSeries(it, matchId, competitionId) }.orEmpty() }
+        }.stateIn(viewModelScope, WhileUiVisible, emptyList())
+
+    fun requestSeries() {
+        seriesWanted.value = true
     }
 
     // ---- actions -------------------------------------------------------------------------

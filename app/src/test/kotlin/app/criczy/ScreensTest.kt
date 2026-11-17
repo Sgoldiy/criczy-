@@ -40,6 +40,13 @@ import androidx.compose.ui.test.assertCountEquals
 import app.criczy.core.model.Ball
 import app.criczy.core.model.BallOutcome
 import app.criczy.feature.match.CommentaryTab
+import androidx.compose.ui.test.isSelectable
+import app.criczy.feature.match.battingMilestone
+import app.criczy.feature.match.bowlingHaul
+import app.criczy.feature.match.feedIndexOf
+import app.criczy.feature.match.keyMoments
+import app.criczy.feature.match.matchFigures
+import app.criczy.feature.match.moreFromSeries
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.performScrollToIndex
 import app.criczy.feature.match.CommentaryFilter
@@ -297,6 +304,67 @@ class ScreensTest {
     private fun seeLinks(): List<String> =
         compose.onAllNodes(hasText("See shot ·", substring = true).or(hasText("See ball ·", substring = true)))
             .fetchSemanticsNodes().map { node -> node.config[SemanticsProperties.Text].joinToString(" ") }
+
+    @Test
+    fun `summary helpers pick key moments, figures, milestones and the rest of the series`() {
+        val (detail, overs) = commentaryFixture()
+        // Key moments: newest first, only wickets and boundaries, each pointing at its commentary row.
+        val moments = keyMoments(overs)
+        assertTrue(moments.size in 1..5)
+        assertTrue(moments.all { it.ball.isWicket || CommentaryFilter.BOUNDARIES.accepts(it.ball) })
+        assertEquals("ball-20-2", moments.first().key, "the last ball of the innings, a wicket")
+        assertEquals(0, feedIndexOf("over-20", overs))
+        assertEquals(1, feedIndexOf("ball-20-2", overs))
+        assertEquals(1 + overs.first().balls.size, feedIndexOf("over-19", overs))
+        assertEquals(null, feedIndexOf("ball-2-0", overs), "not loaded")
+        // Milestones.
+        assertEquals(listOf(null, "50", "50", "100", "150", "200"), listOf(49, 50, 99, 119, 150, 203).map { battingMilestone(it) })
+        assertEquals(listOf(null, "4W", "5W"), listOf(3, 4, 5).map { bowlingHaul(it) })
+        // The player of the match's figures, batting and bowling.
+        val potm = detail.playersOfTheMatch.single()
+        assertEquals("6 (9) · 5/25 (4)", matchFigures(detail, potm.id))
+        // The rest of the series: same competition, never this match, live and upcoming before results.
+        val board = runBlocking { FixtureServer.remote().matchBoard() }
+        val more = moreFromSeries(board, detail.match.id, detail.match.competition.id)
+        assertTrue(more.isNotEmpty() && more.size <= 3)
+        assertTrue(more.all { it.competition.id == detail.match.competition.id && it.id != detail.match.id })
+        val order = more.map { if (it.state == MatchState.COMPLETED) 1 else 0 }
+        assertEquals(order.sorted(), order)
+    }
+
+    @Test
+    fun `summary key moments open the ball in the commentary, and the series is offered next`() {
+        openFinishedMatch()
+        compose.awaitText("PLAYER OF THE MATCH")
+        compose.screenshot("match-summary-result-phone-dark")
+        compose.onAllNodes(hasScrollToNodeAction()).onLast().performScrollToNode(hasText("KEY MOMENTS"))
+        compose.screenshot("match-summary-moments-phone-dark")
+        compose.onAllNodesWithText("Caught · bowler", substring = true).onFirst().performClick()
+        // The commentary opens on that ball with its replay showing.
+        compose.waitUntil(5_000) { groundsShowing("wicket, Caught · bowler") == 1 }
+
+        compose.onNodeWithText("Summary").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onAllNodes(hasScrollToNodeAction()).onLast().performScrollToNode(hasText("MORE FROM", substring = true))
+        compose.onNodeWithText("MORE FROM", substring = true).assertIsDisplayed()
+        compose.onAllNodes(hasScrollToNodeAction()).onLast().performScrollToNode(hasContentDescription("versus", substring = true))
+        compose.screenshot("match-summary-series-phone-dark")
+    }
+
+    @Test
+    fun `squads switch between the teams and group players by role`() {
+        openFinishedMatch()
+        compose.onNodeWithText("Squads").performScrollTo().performClick()
+        compose.awaitText("BATTERS", substring = true)
+        val match = runBlocking { FixtureServer.remote().matchDetail(40644)!! }
+        val home = match.squad(match.match.home.id).first { !it.isSubstitute }
+        val away = match.squad(match.match.away.id).first { !it.isSubstitute }
+        assertTrue(compose.onAllNodes(hasContentDescription(home.name, substring = true)).fetchSemanticsNodes().isNotEmpty())
+        compose.onNode(hasText(match.match.away.shortName).and(isSelectable())).performClick()
+        compose.waitUntil(5_000) { compose.onAllNodes(hasContentDescription(away.name, substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(0, compose.onAllNodes(hasContentDescription(home.name, substring = true)).fetchSemanticsNodes().size)
+        compose.screenshot("match-squads-away-phone-dark")
+    }
 
     @Test
     fun `commentary reads as bowler to batter, then what happened`() {

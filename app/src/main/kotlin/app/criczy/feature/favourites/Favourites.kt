@@ -103,7 +103,7 @@ fun FavouritesScreen(
                                     }.padding(start = 16.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    Badge(favourite.subtitle?.takeIf { favourite.type == FavouriteType.TEAM } ?: favourite.title, favourite.imageUrl, favourite.colorHex, size = 40.dp)
+                                    Badge(favourite.subtitle?.takeIf { favourite.type == FavouriteType.TEAM } ?: favourite.title, favourite.imageUrl, favourite.colorHex, size = 40.dp, photo = favourite.type == FavouriteType.PLAYER)
                                     Spacer(Modifier.width(12.dp))
                                     Column(Modifier.weight(1f)) {
                                         Text(favourite.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)

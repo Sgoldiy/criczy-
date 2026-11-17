@@ -1,6 +1,23 @@
 package app.criczy.feature.match
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import app.criczy.core.model.Match
+import app.criczy.core.model.Player
+import app.criczy.ui.components.Badge
+import app.criczy.ui.components.MatchCard
+import app.criczy.ui.components.PlayerPhoto
+import app.criczy.ui.components.ballStory
+import app.criczy.ui.components.storyColor
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -49,6 +66,7 @@ import app.criczy.core.model.MatchDetail
 import app.criczy.core.model.MatchState
 import app.criczy.core.model.Over
 import app.criczy.ui.components.Panel
+import app.criczy.ui.components.Pill
 import app.criczy.ui.components.StatCell
 import app.criczy.ui.format.Formatters
 import app.criczy.ui.theme.ScoreFont
@@ -104,9 +122,16 @@ internal fun spokenBall(ball: Ball): String = when (ball.outcome) {
 }
 
 @Composable
-internal fun SummaryTab(detail: MatchDetail, commentary: CommentaryUiState, actions: MatchActions) {
+internal fun SummaryTab(
+    detail: MatchDetail,
+    commentary: CommentaryUiState,
+    actions: MatchActions,
+    series: List<Match> = emptyList(),
+    onOpenCommentary: (String?) -> Unit = {},
+) {
     val match = detail.match
     val current = detail.currentInnings
+    val moments = remember(commentary.overs) { keyMoments(commentary.overs) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = tabPadding, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (match.state == MatchState.UPCOMING) {
             item {
@@ -130,16 +155,84 @@ internal fun SummaryTab(detail: MatchDetail, commentary: CommentaryUiState, acti
         }
         val recent = commentary.overs.take(4)
         if (recent.isNotEmpty() && current != null && commentary.inningsNumber == current.number && match.state != MatchState.COMPLETED) {
-            item { RecentOversPanel(recent) }
+            item { RecentOversPanel(recent) { onOpenCommentary("over-$it") } }
+        }
+        if (moments.isNotEmpty()) {
+            item(key = "moments") { KeyMomentsPanel(detail, commentary, moments, onOpenBall = { onOpenCommentary(it) }, onSeeAll = { onOpenCommentary(null) }) }
         }
         detail.innings.forEach { innings ->
             item(key = "top-${innings.number}") { TopPerformersPanel(detail, innings, actions.onPlayer) }
         }
-        item {
+        // What to watch next: the rest of the series, live first, then the next fixture and recent results.
+        if (series.isNotEmpty()) {
+            item(key = "series-title") {
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "MORE FROM ${match.competition.name.uppercase()}", style = MaterialTheme.typography.titleLarge, fontSize = 17.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        "See all", style = MaterialTheme.typography.labelLarge, color = cricketColors.accent, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable(onClickLabel = "Open the series") { actions.onCompetition(match.competition.id, match.competition.name) }.padding(8.dp),
+                    )
+                }
+            }
+            items(series, key = { "series-${it.id}" }) { other -> MatchCard(other, onClick = { actions.onMatch(other.id) }) }
+        } else {
+            item {
+                Text(
+                    "${match.competition.name} ›",
+                    style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { actions.onCompetition(match.competition.id, match.competition.name) }.padding(vertical = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The latest wickets and boundaries, newest first. Each opens that ball's replay in the
+ * commentary; See all opens the commentary itself.
+ */
+@Composable
+private fun KeyMomentsPanel(detail: MatchDetail, commentary: CommentaryUiState, moments: List<KeyMoment>, onOpenBall: (String) -> Unit, onSeeAll: () -> Unit) {
+    val innings = detail.innings.firstOrNull { it.number == commentary.inningsNumber }
+    val team = innings?.let { detail.match.team(it.battingTeamId)?.shortName }
+    Panel {
+        Column(Modifier.padding(bottom = 4.dp)) {
+            PanelTitle("Key moments", team?.let { "$it innings" })
+            moments.forEach { moment ->
+                val ball = moment.ball
+                val story = ballStory(ball)
+                val tone = storyColor(story.kind)
+                val bowler = detail.player(ball.bowlerId)?.name ?: "Bowler"
+                val batter = detail.player(ball.batterId)?.name ?: "batter"
+                Row(
+                    Modifier.fillMaxWidth().clickable(onClickLabel = "Replay this ball") { onOpenBall(moment.key) }
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    BallChip(ball, size = 34)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            buildAnnotatedString {
+                                withStyle(SpanStyle(color = tone, fontWeight = FontWeight.Bold)) { append(story.headline) }
+                                story.detail?.let { append(" · $it") }
+                            },
+                            style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            "${ball.overNumber - 1}.${ball.ballNumber} · $bowler to $batter",
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             Text(
-                "${match.competition.name} ›",
-                style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable { actions.onCompetition(match.competition.id, match.competition.name) }.padding(vertical = 8.dp),
+                "See all commentary", style = MaterialTheme.typography.labelLarge, color = cricketColors.accent, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable(onClick = onSeeAll).padding(horizontal = 14.dp, vertical = 10.dp),
             )
         }
     }
@@ -201,8 +294,9 @@ private fun AtTheCreasePanel(innings: Innings, onPlayer: (Int) -> Unit) {
                 BowlerRow(bowler, onPlayer)
             }
             innings.fallOfWickets.lastOrNull()?.let {
+                val out = innings.batted.firstOrNull { b -> b.playerId == it.playerId }
                 Text(
-                    "Last wicket: ${it.playerName} at ${it.runs}/${it.order} (${it.over} ov)",
+                    "Last wicket: ${it.playerName}${out?.let { b -> " ${b.runs} (${b.balls})" }.orEmpty()} · ${it.runs}/${it.order} (${it.over} ov)",
                     style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                 )
@@ -212,12 +306,15 @@ private fun AtTheCreasePanel(innings: Innings, onPlayer: (Int) -> Unit) {
 }
 
 @Composable
-private fun RecentOversPanel(overs: List<Over>) {
+private fun RecentOversPanel(overs: List<Over>, onOpenOver: (Int) -> Unit) {
     Panel {
-        Column(Modifier.padding(bottom = 12.dp)) {
-            PanelTitle("Recent overs")
+        Column(Modifier.padding(bottom = 8.dp)) {
+            PanelTitle("Recent overs", "tap to replay")
             overs.forEach { over ->
-                Row(Modifier.padding(horizontal = 14.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.fillMaxWidth().clickable(onClickLabel = "Replay over ${over.number}") { onOpenOver(over.number) }.padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text("Ov ${over.number}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(46.dp))
                     Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         over.balls.forEach { BallChip(it) }
@@ -232,17 +329,45 @@ private fun RecentOversPanel(overs: List<Over>) {
 @Composable
 private fun ResultPanel(detail: MatchDetail, onPlayer: (Int) -> Unit) {
     val match = detail.match
+    val winner = match.winnerTeamId?.let { match.team(it) }
     Panel {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(match.statusText ?: "Match finished", style = MaterialTheme.typography.headlineSmall, color = if (match.winnerTeamId != null) cricketColors.win else MaterialTheme.colorScheme.onSurface)
-            detail.playersOfTheMatch.forEach { player ->
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (winner != null) {
+                    Badge(winner.shortName, winner.logoUrl, winner.colorHex, size = 40.dp)
+                    Spacer(Modifier.width(12.dp))
+                }
                 Text(
-                    "Player of the match: ${player.name}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable { onPlayer(player.id) },
+                    match.statusText ?: "Match finished", style = MaterialTheme.typography.headlineSmall,
+                    color = if (winner != null) cricketColors.win else MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f),
                 )
             }
             match.tossText?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            detail.playersOfTheMatch.forEach { PlayerOfTheMatchCard(detail, it, onPlayer) }
         }
+    }
+}
+
+@Composable
+private fun PlayerOfTheMatchCard(detail: MatchDetail, player: Player, onPlayer: (Int) -> Unit) {
+    val accent = cricketColors.accent
+    val team = player.teamId?.let { detail.match.team(it) }
+    val figures = remember(detail, player.id) { matchFigures(detail, player.id) }
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(accent.copy(alpha = 0.1f))
+            .clickable(onClickLabel = "Open player") { onPlayer(player.id) }.padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PlayerPhoto(player.name, player.imageUrl, size = 56.dp)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text("PLAYER OF THE MATCH", style = MaterialTheme.typography.labelSmall, color = accent, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text(player.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            listOfNotNull(team?.shortName, figures).joinToString(" · ").takeIf { it.isNotEmpty() }?.let {
+                Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -256,18 +381,20 @@ private fun TopPerformersPanel(detail: MatchDetail, innings: Innings, onPlayer: 
         Column(Modifier.padding(bottom = 8.dp)) {
             PanelTitle("${team?.shortName ?: "Innings ${innings.number}"} ${innings.score.scoreText}", "${innings.score.overs} ov")
             batters.forEach { batter ->
-                PerformerRow(batter.name, "${batter.runs}${if (batter.isOut) "" else "*"} (${batter.balls})", onClick = { onPlayer(batter.playerId) })
+                PerformerRow(batter.name, detail.player(batter.playerId)?.imageUrl, "${batter.runs}${if (batter.isOut) "" else "*"} (${batter.balls})", onClick = { onPlayer(batter.playerId) })
             }
             bowlers.forEach { bowler ->
-                PerformerRow(bowler.name, "${bowler.wickets}/${bowler.runs} (${bowler.overs})", onClick = { onPlayer(bowler.playerId) })
+                PerformerRow(bowler.name, detail.player(bowler.playerId)?.imageUrl, "${bowler.wickets}/${bowler.runs} (${bowler.overs})", onClick = { onPlayer(bowler.playerId) })
             }
         }
     }
 }
 
 @Composable
-private fun PerformerRow(name: String, figures: String, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun PerformerRow(name: String, imageUrl: String?, figures: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClickLabel = "Open player", onClick = onClick).padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        PlayerPhoto(name, imageUrl, size = 34.dp)
+        Spacer(Modifier.width(10.dp))
         Text(name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(figures, fontFamily = ScoreFont, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
     }
@@ -312,6 +439,10 @@ private fun BatterRow(batter: BatterLine, onPlayer: (Int) -> Unit, showDismissal
                     Spacer(Modifier.width(6.dp))
                     Box(Modifier.size(7.dp).background(cricketColors.accent, CircleShape))
                 }
+                battingMilestone(batter.runs)?.let {
+                    Spacer(Modifier.width(6.dp))
+                    Pill(it, container = cricketColors.accent.copy(alpha = 0.2f), content = cricketColors.accent)
+                }
             }
             if (showDismissal) {
                 Text(
@@ -343,7 +474,13 @@ private fun BowlerRow(bowler: BowlerLine, onPlayer: (Int) -> Unit) {
             .semantics(mergeDescendants = true) { contentDescription = spoken }.padding(horizontal = 14.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(bowler.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            Text(bowler.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            bowlingHaul(bowler.wickets)?.let {
+                Spacer(Modifier.width(6.dp))
+                Pill(it, container = cricketColors.wicket.copy(alpha = 0.18f), content = cricketColors.wicket)
+            }
+        }
         NumberCell(bowler.overs); NumberCell(bowler.maidens.toString()); NumberCell(bowler.runs.toString()); NumberCell(bowler.wickets.toString(), bold = true)
         NumberCell(Formatters.rate(bowler.economy), wide = true)
     }

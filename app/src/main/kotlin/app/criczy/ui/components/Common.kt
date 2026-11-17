@@ -36,6 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -53,11 +56,19 @@ import app.criczy.ui.theme.ScoreFont
 import app.criczy.ui.theme.cricketColors
 import app.criczy.ui.theme.parseTeamColor
 import coil3.compose.SubcomposeAsyncImage
+import coil3.compose.SubcomposeAsyncImageContent
 
 /**
  * Team or competition badge. Shows the remote logo when it loads and otherwise a disc in the
  * team's colour with its short name, so cards never have holes while offline.
  */
+/**
+ * Player headshots are cut-outs with the head in the upper part of the picture, so a plain
+ * centre crop shows the chest and cuts the face. Photos are cropped from the top and zoomed
+ * by this much, which puts the face in the middle of the circle.
+ */
+private const val PHOTO_ZOOM = 1.3f
+
 @Composable
 fun Badge(
     label: String,
@@ -65,6 +76,8 @@ fun Badge(
     colorHex: String?,
     modifier: Modifier = Modifier,
     size: Dp = 40.dp,
+    /** A player headshot rather than a logo: framed on the face, on a soft disc. */
+    photo: Boolean = false,
 ) {
     val base = parseTeamColor(colorHex) ?: MaterialTheme.colorScheme.secondaryContainer
     val onBase = if (base.luminance() > 0.5f) Color(0xFF151A22) else Color.White
@@ -80,10 +93,12 @@ fun Badge(
             )
         }
     }
+    val disc = Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.surfaceContainerLow))
     Box(
         modifier
             .size(size)
             .clip(CircleShape)
+            .then(if (photo) Modifier.background(disc) else Modifier)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
             .clearAndSetSemantics { },
     ) {
@@ -94,12 +109,33 @@ fun Badge(
                 model = imageUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                alignment = if (photo) Alignment.TopCenter else Alignment.Center,
                 modifier = Modifier.fillMaxSize(),
                 loading = { fallback() },
                 error = { fallback() },
+                // Only the loaded photo is zoomed on the face; the initials stay centred.
+                success = {
+                    SubcomposeAsyncImageContent(
+                        modifier = if (photo) {
+                            Modifier.fillMaxSize().graphicsLayer {
+                                scaleX = PHOTO_ZOOM
+                                scaleY = PHOTO_ZOOM
+                                transformOrigin = TransformOrigin(0.5f, 0f)
+                            }
+                        } else {
+                            Modifier.fillMaxSize()
+                        },
+                    )
+                },
             )
         }
     }
+}
+
+/** A player's headshot in a circle, framed on the face, with their initials until it loads. */
+@Composable
+fun PlayerPhoto(name: String, imageUrl: String?, modifier: Modifier = Modifier, size: Dp = 40.dp) {
+    Badge(name.split(' ').mapNotNull { it.firstOrNull() }.take(2).joinToString(""), imageUrl, null, modifier, size, photo = true)
 }
 
 @Composable
