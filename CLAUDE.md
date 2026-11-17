@@ -105,6 +105,8 @@ Captured real responses for tests live in `core/network/src/test/resources/fixtu
 
 ## Open items
 
+What to build next, in order, with the API fields each idea uses: `docs/ROADMAP.md` (start at "Suggested order"). The November 2026 polish session (commentary replays, match centre, main screens) is merged to `main`.
+
 1. Test the release build on a real device (never done).
 2. Release builds are debug-signed until the owner adds `keystore.properties` (`docs/RELEASE.md`).
 3. Data licensing: the API, logos and photos belong to Cricket Australia; unresolved Google Play risk.
