@@ -1,10 +1,19 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
+<vector xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
     <path android:pathData="M0,0h108v108h-108z">
-        <aapt:attr name="android:fillColor" xmlns:aapt="http://schemas.android.com/aapt">
+        <aapt:attr name="android:fillColor">
             <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="108" android:endY="108">
-                <item android:offset="0" android:color="#FF16233D" />
-                <item android:offset="1" android:color="#FF0B1018" />
+                <item android:offset="0" android:color="#FF1B2C52" />
+                <item android:offset="1" android:color="#FF070B12" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- A soft floodlight glow behind the ball. -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="78" android:centerY="32" android:gradientRadius="60">
+                <item android:offset="0" android:color="#26FFB627" />
+                <item android:offset="1" android:color="#00FFB627" />
             </gradient>
         </aapt:attr>
     </path>

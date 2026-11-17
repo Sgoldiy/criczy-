@@ -4,7 +4,7 @@
 ./gradlew test
 ```
 
-75 tests run offline in about two minutes. Two more call the real API and run only on request:
+78 tests run offline in about two minutes. Two more call the real API and run only on request:
 
 ```bash
 ./gradlew :core:network:test -PliveApi=true --tests '*LiveApiContractTest*'
@@ -15,7 +15,7 @@
 | `core:network` | 16 (+2 live) | Every endpoint mapped from responses captured from the live API; server-side limits; paging of long innings; error classification; offline cache fallback and request sharing |
 | `core:analytics` | 12 | Manhattan, worm, run rate, scoring breakdown, partnerships, match-ups, phases, projections, wagon-wheel zones (checked against real fielding positions), pitch map |
 | `core:data` | 14 | Polling intervals and backoff, one-shot loads, favourites, search (including offline), leaderboards, alert planning (start, wicket, result, starting soon, muted) |
-| `app` | 19 | The real navigation graph, view models and repositories rendered with Robolectric against captured data: home tabs and filters, match centre tabs, compare sheet, Test match target, favourites, series table and stats, news, search, error and retry, settings, onboarding |
+| `app` | 22 | The real navigation graph, view models and repositories rendered with Robolectric against captured data: home tabs and filters, match centre tabs, compare sheet, Test match target, favourites, series table and stats, news, search, error and retry, settings, onboarding (forward, back, skip, small phone, tablet) |
 
 One network test checks that a real innings' ball data adds up exactly to its scoreboard (runs, legal balls, wickets, every over), because every chart depends on that.
 

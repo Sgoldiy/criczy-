@@ -6,7 +6,7 @@ Read this before exploring. It records what is already known so it does not need
 
 Android cricket app (Kotlin, Jetpack Compose, Material 3) that replaces the owner's older app, Cricpeak (`Sgoldiy/CRICSCORE`, package `com.cricpeak.scorelive`). Do not modify that repository. Its audit is in `docs/CRICPEAK_AUDIT.md`; there is no need to read its code again.
 
-Status: feature-complete for v1.0.0, 75 tests passing, lint clean, release APK and AAB build. Never run on a real device or emulator.
+Status: feature-complete for v1.0.0, 78 tests passing, lint clean, release APK and AAB build. Never run on a real device or emulator.
 
 ## Decisions already made by the owner (do not re-ask)
 
@@ -32,7 +32,7 @@ Dependency direction: `app → core:data → core:network, core:analytics → co
 ## Commands
 
 ```bash
-./gradlew test                     # all 75 tests, about 2 minutes
+./gradlew test                     # all 78 tests, about 2 minutes
 ./gradlew :app:testDebugUnitTest   # UI tests only; screenshots go to app/build/screenshots
 ./gradlew :app:lintDebug
 ./gradlew :app:assembleDebug :app:assembleRelease :app:bundleRelease
@@ -90,6 +90,8 @@ Captured real responses for tests live in `core/network/src/test/resources/fixtu
 - Team, competition and player images go through `Badge`, which falls back to a coloured disc.
 - New endpoint: add to `CricketAuApi`, DTO with defaults on every field, mapper, a function on `CricketRemoteDataSource`, and a fixture-backed test.
 - Kotlin warnings are errors in the pure-Kotlin modules.
+- The launcher icon is vector only (`ic_launcher_foreground/background/monochrome.xml`); `ic_stat_criczy.xml` is the same mark in one colour. `docs/store/icon-512.png` is the Play listing icon, rendered from the same shapes.
+- Onboarding illustrations use invented teams (Lions, Hawks) on purpose; never put real teams or results in intro art.
 - Never commit keys, `keystore.properties`, `google-services.json`, APKs or AABs.
 
 ## Open items

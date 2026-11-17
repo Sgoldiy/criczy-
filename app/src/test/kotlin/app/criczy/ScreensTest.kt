@@ -259,16 +259,50 @@ class ScreensTest {
     }
 
     @Test
-    fun `onboarding walks through to the end`() {
+    fun `onboarding walks through to the end and can go back`() {
         var finished = false
         compose.setCriczyContent { OnboardingScreen { finished = true } }
-        compose.screenshot("onboarding-phone-dark")
+        compose.onNodeWithText("Every ball, as it happens").assertIsDisplayed()
+        compose.screenshot("onboarding-1-phone-dark")
+        compose.onNodeWithText("Next").performClick()
+        compose.awaitText("See the match, not just the score")
+        compose.screenshot("onboarding-2-phone-dark")
+        compose.onNodeWithText("Back").performClick()
+        compose.awaitText("Every ball, as it happens")
         compose.onNodeWithText("Next").performClick()
         compose.awaitText("See the match, not just the score")
         compose.onNodeWithText("Next").performClick()
         compose.awaitText("Get started")
+        compose.onNodeWithText("Follow what matters to you").assertIsDisplayed()
+        compose.screenshot("onboarding-3-phone-dark")
         compose.onNodeWithText("Get started").performClick()
         assertTrue(finished)
+    }
+
+    @Test
+    fun `onboarding skip finishes immediately`() {
+        var finished = false
+        compose.setCriczyContent(dark = false) { OnboardingScreen { finished = true } }
+        compose.screenshot("onboarding-1-phone-light")
+        compose.onNodeWithText("Skip").performClick()
+        assertTrue(finished)
+    }
+
+    @Test
+    @Config(qualifiers = SMALL_PHONE)
+    fun `onboarding fits a small phone`() {
+        compose.setCriczyContent { OnboardingScreen {} }
+        compose.onNodeWithText("Next").assertIsDisplayed()
+        compose.onNodeWithText("Every ball, as it happens").assertIsDisplayed()
+        compose.screenshot("onboarding-1-smallphone-dark")
+    }
+
+    @Test
+    @Config(qualifiers = TABLET)
+    fun `onboarding on a tablet`() {
+        compose.setCriczyContent { OnboardingScreen {} }
+        compose.onNodeWithText("Next").assertIsDisplayed()
+        compose.screenshot("onboarding-1-tablet-dark")
     }
 
     @Test

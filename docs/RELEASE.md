@@ -62,6 +62,6 @@ For you to do:
 - [ ] Host the privacy policy at a public URL and enter it in Play Console.
 - [ ] Data safety form: no data collected or shared; data is not encrypted in transit by you but all traffic is HTTPS.
 - [ ] Content rating questionnaire, target audience, app category (Sports).
-- [ ] Store listing: 512×512 icon, 1024×500 feature graphic, phone and tablet screenshots (`docs/screenshots` is a start), short and full descriptions. Do not use team logos or player photos in the listing without rights.
+- [ ] Store listing: 512×512 icon (ready at `docs/store/icon-512.png`), 1024×500 feature graphic, phone and tablet screenshots (`docs/screenshots` is a start), short and full descriptions. Do not use team logos or player photos in the listing without rights.
 - [ ] Add a contact email to the listing and to the privacy policy.
 - [ ] New personal developer accounts must run a closed test with 12 testers for 14 days before production.
