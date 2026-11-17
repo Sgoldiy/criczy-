@@ -22,3 +22,4 @@ google-services.json
 
 # Screenshot test output
 **/build/screenshots/
+dist/
