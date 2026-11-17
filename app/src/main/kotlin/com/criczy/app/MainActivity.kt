@@ -26,7 +26,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.criczy.app.core.data.UserPreferences
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.criczy.app.feature.onboarding.OnboardingScreen
+import com.criczy.app.feature.onboarding.TeamPickerRoute
 import com.criczy.app.navigation.CriczyNavHost
 import com.criczy.app.navigation.Routes
 import com.criczy.app.ui.LocalAppContainer
@@ -54,7 +56,10 @@ class MainActivity : ComponentActivity() {
             CompositionLocalProvider(LocalAppContainer provides container) {
                 CriczyTheme(loaded.themeMode, loaded.dynamicColor) {
                     if (!loaded.onboardingDone) {
-                        OnboardingScreen(onFinish = { scope.launch { container.preferences.setOnboardingDone() } })
+                        // The intro pages, then a team picker; finishing either way ends onboarding.
+                        var picking by rememberSaveable { mutableStateOf(false) }
+                        val finish: () -> Unit = { scope.launch { container.preferences.setOnboardingDone() } }
+                        if (picking) TeamPickerRoute(onDone = finish) else OnboardingScreen(onFinish = { picking = true })
                     } else {
                         val navController = rememberNavController()
                         val entry by navController.currentBackStackEntryAsState()

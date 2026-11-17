@@ -1,5 +1,10 @@
 package com.criczy.app.feature.match
 
+import android.widget.Toast
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.PushPin
+import com.criczy.app.notifications.LiveScoreService
+import com.criczy.app.notifications.Notifier
 import com.criczy.app.ui.components.scrollingText
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -90,6 +95,8 @@ data class MatchActions(
     val onOpenUrl: (String) -> Unit,
     val onMatch: (Int) -> Unit = {},
     val onRequestSeries: () -> Unit = {},
+    /** Pins or unpins the match's live score in the notification bar. */
+    val onTogglePin: (Int) -> Unit = {},
 )
 
 @Composable
@@ -113,7 +120,9 @@ fun MatchRoute(
     val cached by vm.servingCached.collectAsStateWithLifecycle()
     val event by vm.scoreEvent.collectAsStateWithLifecycle()
     val series by vm.seriesMatches.collectAsStateWithLifecycle()
+    val pinned by LiveScoreService.pinned.collectAsStateWithLifecycle()
     MatchScreen(
+        pinned = pinned == matchId,
         detail = detail, commentary = commentary, analysis = analysis, highlights = highlights,
         isFavourite = favourite, servingCached = cached, scoreEvent = event, series = series,
         actions = MatchActions(
@@ -123,6 +132,13 @@ fun MatchRoute(
             onSelectCommentaryInnings = vm::selectCommentaryInnings, onLoadOlderCommentary = vm::loadOlderCommentary,
             onRequestAnalysis = vm::requestAnalysis, onRequestHighlights = vm::requestHighlights, onOpenUrl = onOpenUrl,
             onMatch = onMatch, onRequestSeries = vm::requestSeries,
+            onTogglePin = { id ->
+                when {
+                    pinned == id -> LiveScoreService.stop(context)
+                    !Notifier.canPost(context) -> Toast.makeText(context, "Turn on notifications for Criczy to pin the score.", Toast.LENGTH_LONG).show()
+                    else -> LiveScoreService.start(context, id)
+                }
+            },
         ),
     )
 }
@@ -144,6 +160,7 @@ fun MatchScreen(
     actions: MatchActions,
     initialTab: Int = 0,
     series: List<Match> = emptyList(),
+    pinned: Boolean = false,
 ) {
     val data = detail.data?.detail
     Scaffold(
@@ -164,6 +181,12 @@ fun MatchScreen(
                 navigationIcon = { IconButton(onClick = actions.onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
                 actions = {
                     if (data != null) {
+                        if (pinned || data.match.state == MatchState.LIVE || data.match.state == MatchState.IN_PROGRESS) {
+                            IconButton(onClick = { actions.onTogglePin(data.match.id) }) {
+                                if (pinned) Icon(Icons.Filled.PushPin, contentDescription = "Unpin score from notifications", tint = cricketColors.accent)
+                                else Icon(Icons.Outlined.PushPin, contentDescription = "Pin score to notifications")
+                            }
+                        }
                         IconButton(onClick = actions.onToggleFavourite) {
                             if (isFavourite) Icon(Icons.Filled.Star, contentDescription = "Remove from favourites", tint = cricketColors.accent)
                             else Icon(Icons.Outlined.StarBorder, contentDescription = "Add to favourites")

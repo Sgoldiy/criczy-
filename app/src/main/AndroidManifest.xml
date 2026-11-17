@@ -4,6 +4,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- A match the user pins keeps its score in the notification bar (LiveScoreService). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- Lets the app check that a browser and a maps app exist before opening links. -->
     <queries>
@@ -57,6 +60,15 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/live_score_widget_info" />
         </receiver>
+
+        <service
+            android:name=".notifications.LiveScoreService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Shows the live score of a cricket match the user pinned from the match screen, updated while the match is in play, until the user stops it or the match ends." />
+        </service>
 
         <provider
             android:name="androidx.core.content.FileProvider"
