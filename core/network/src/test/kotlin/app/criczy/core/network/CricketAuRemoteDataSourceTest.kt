@@ -57,6 +57,10 @@ class CricketAuRemoteDataSourceTest {
         assertTrue(board.upcoming.all { it.state == MatchState.UPCOMING })
         assertTrue(board.completed.all { it.state == MatchState.COMPLETED })
 
+        // Upcoming league fixtures arrive with a blank GameType; the format comes from the competition.
+        assertTrue(board.all.none { it.format == MatchFormat.OTHER }, board.all.filter { it.format == MatchFormat.OTHER }.joinToString { it.competition.name })
+        assertEquals(MatchFormat.T20, board.all.first { it.competition.name.startsWith("Weber WBBL") }.format)
+
         val test = board.live.first { it.id == 41015 }
         assertEquals(MatchFormat.TEST, test.format)
         assertEquals(MatchState.IN_PROGRESS, test.state, "at stumps the match is in progress but not live")

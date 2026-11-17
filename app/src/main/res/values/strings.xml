@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Criczy</string>
+    <string name="widget_name">Live score</string>
+    <string name="widget_description">The live match you follow, or the next one up.</string>
+</resources>

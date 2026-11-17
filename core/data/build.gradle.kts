@@ -15,6 +15,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // java.time is used throughout the models; this makes it work on Android 7 (API 24-25).
+        isCoreLibraryDesugaringEnabled = true
     }
     testOptions {
         unitTests.isIncludeAndroidResources = true
@@ -33,16 +35,17 @@ ksp {
 }
 
 dependencies {
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
     api(project(":core:model"))
     api(project(":core:network"))
     api(project(":core:analytics"))
     api(libs.kotlinx.coroutines.android)
 
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.room.runtime)
+    api(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
-    implementation(libs.androidx.datastore.preferences)
+    api(libs.androidx.datastore.preferences)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlin.test)

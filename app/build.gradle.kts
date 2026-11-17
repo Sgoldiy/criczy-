@@ -52,6 +52,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // java.time is used throughout the models; this makes it work on Android 7 (API 24-25).
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
         compose = true
@@ -63,6 +65,8 @@ android {
             all { it.systemProperty("robolectric.graphicsMode", "NATIVE") }
         }
     }
+    // UI tests render screens with the API responses captured for the network module's tests.
+    sourceSets["test"].resources.srcDir("../core/network/src/test/resources")
     packaging {
         resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "META-INF/LICENSE*", "META-INF/NOTICE*")
     }
@@ -79,6 +83,7 @@ kotlin {
 }
 
 dependencies {
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
     implementation(project(":core:data"))
 
     implementation(libs.androidx.core.ktx)
@@ -115,4 +120,10 @@ dependencies {
     testImplementation(libs.androidx.work.testing)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.okhttp.mockwebserver)
+}
+
+// UI tests need the debug-only test activity, so they run against the debug variant only.
+androidComponents {
+    beforeVariants(selector().withBuildType("release")) { it.enableUnitTest = false }
 }

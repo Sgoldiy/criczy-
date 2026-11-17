@@ -92,6 +92,21 @@ internal fun humanise(identifier: String): String? {
     return text.replace(Regex("(?<=[a-z])(?=[A-Z])"), " ").lowercase().replaceFirstChar(Char::uppercase)
 }
 
+private val t20Leagues = setOf("bbl", "wbbl", "ipl", "wpl", "psl", "cpl", "sa20", "ilt20")
+
+/**
+ * The fixture list often leaves GameType blank for matches that have not started, so fall back
+ * to the competition's declared format, its league tag, and finally the overs per side.
+ */
+internal fun FixtureDto.formatSource(): String =
+    sequenceOf(
+        gameType,
+        competition?.formats?.firstOrNull()?.displayName.orEmpty(),
+        competition?.gameType?.name.orEmpty(),
+        competition?.associatedMatchType.orEmpty(),
+        when (totalOvers.toIntOrNull()) { 20 -> "T20"; 50 -> "One Day"; else -> "" },
+    ).firstOrNull { it.isNotBlank() }.orEmpty()
+
 internal fun parseFormat(gameType: String): MatchFormat {
     val text = gameType.lowercase()
     val international = "international" in text || text.endsWith("i")
@@ -99,7 +114,7 @@ internal fun parseFormat(gameType: String): MatchFormat {
         "test" in text -> MatchFormat.TEST
         "first class" in text || "first-class" in text || "shield" in text || "four day" in text -> MatchFormat.FIRST_CLASS
         "hundred" in text || "100" in text -> MatchFormat.HUNDRED
-        "t20" in text || "twenty20" in text || "twenty 20" in text ->
+        "t20" in text || "twenty20" in text || "twenty 20" in text || text in t20Leagues ->
             if (international) MatchFormat.T20I else MatchFormat.T20
         text == "odi" || "one day international" in text -> MatchFormat.ODI
         "one day" in text || "one-day" in text || "list a" in text || "50" in text -> MatchFormat.ONE_DAY
@@ -176,8 +191,8 @@ internal fun FixtureDto.toModel(): Match {
         start = parseInstant(startDateTime),
         end = parseInstant(endDateTime),
         state = state(),
-        format = parseFormat(gameType),
-        formatLabel = gameType,
+        format = parseFormat(formatSource()),
+        formatLabel = formatSource(),
         innings = innings.sortedBy { it.inningNumber }.map { it.toScore() },
         statusText = resultText.orNullIfBlank() ?: gameStatus.orNullIfBlank(),
         tossText = tossResult.orNullIfBlank(),

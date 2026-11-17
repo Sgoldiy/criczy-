@@ -23,36 +23,38 @@ Single activity, portrait-locked, one `NavHost`. Routes:
 
 Dialogs: no-internet (blocking, with Retry), exit confirmation (with banner ad), reward policy consent, fantasy team result, "fantasy not available yet" info.
 
-## 2. Feature checklist (parity list)
+## 2. Cricpeak feature list
+
+How each item was carried over, changed or dropped is in [ROADMAP.md](ROADMAP.md) and the README.
 
 Match data
-- [ ] Live, upcoming and completed fixtures (30 of each)
-- [ ] Auto refresh every 5 seconds on home and on live match details
-- [ ] Featured carousel, live badge, competition name, venue, local start time
-- [ ] Background preload of scorecard and first commentary page for listed matches
-- [ ] Match header: both teams, innings scores, overs, result text, toss
-- [ ] Current batters (on-strike marker), current bowler, partnership, CRR and RRR
-- [ ] "Recent Balls" strip, last 5 overs, colour-coded (wicket, six, four, wide/no-ball, bye/leg-bye)
-- [ ] FOUR / SIX / WICKET animation when the score changes on refresh
-- [ ] Summary tab: squads for both teams (tap opens player profile), match info table (date, venue, toss; umpire fields exist but are always empty)
-- [ ] Scorecard tab: innings tabs (up to 4 for Tests), batting cards (R, B, 4s, 6s, SR, dismissal), extras breakdown, total, bowling cards (O, M, R, W, economy, dots, wides), fall of wickets is modelled
-- [ ] Commentary tab: innings switcher, ball-by-ball text, end-of-over summary cards (score, runs in over, wickets, run rate, batters, bowler), scroll pagination by `LastOverNumber`
-- [ ] Per-ball detail badges: line, length, shot type, fielding position, bat connection, footwork, dismissal type
-- [ ] Shot view (wagon-wheel style canvas for a single ball, from shot angle and magnitude)
-- [ ] Player profile from match squad data
+-  Live, upcoming and completed fixtures (30 of each)
+-  Auto refresh every 5 seconds on home and on live match details
+-  Featured carousel, live badge, competition name, venue, local start time
+-  Background preload of scorecard and first commentary page for listed matches
+-  Match header: both teams, innings scores, overs, result text, toss
+-  Current batters (on-strike marker), current bowler, partnership, CRR and RRR
+-  "Recent Balls" strip, last 5 overs, colour-coded (wicket, six, four, wide/no-ball, bye/leg-bye)
+-  FOUR / SIX / WICKET animation when the score changes on refresh
+-  Summary tab: squads for both teams (tap opens player profile), match info table (date, venue, toss; umpire fields exist but are always empty)
+-  Scorecard tab: innings tabs (up to 4 for Tests), batting cards (R, B, 4s, 6s, SR, dismissal), extras breakdown, total, bowling cards (O, M, R, W, economy, dots, wides), fall of wickets is modelled
+-  Commentary tab: innings switcher, ball-by-ball text, end-of-over summary cards (score, runs in over, wickets, run rate, batters, bowler), scroll pagination by `LastOverNumber`
+-  Per-ball detail badges: line, length, shot type, fielding position, bat connection, footwork, dismissal type
+-  Shot view (wagon-wheel style canvas for a single ball, from shot angle and magnitude)
+-  Player profile from match squad data
 
 AI
-- [ ] Gemini match prediction for upcoming matches (win %, analysis, key players)
-- [ ] "AI Fun Fantasy XI" from the 22 announced players (falls back to a random 11 if the AI fails)
+-  Gemini match prediction for upcoming matches (win %, analysis, key players)
+-  "AI Fun Fantasy XI" from the 22 announced players (falls back to a random 11 if the AI fails)
 
 Monetisation and growth
-- [ ] AdMob banners (15 placements), native ads, interstitials (30 s cooldown, on tab change), rewarded ads
-- [ ] Ad placements switched on and off remotely from Firebase Realtime Database `ads_config`
-- [ ] Rewarded-ad gating: live commentary unlocks 2 overs at a time; AI prediction unlocks 2 uses per ad
-- [ ] Premium via Play Billing: `monthly_sub`, `half_yearly_sub`, `yearly_sub`, `lifetime_access`; removes ads, unlocks AI fantasy, gold theme
-- [ ] iZooto push notifications (generic marketing push, not match-specific)
-- [ ] Install counter POST to `quanrix.com/devcount/upcount.php`
-- [ ] Rate, share, uninstall feedback
+-  AdMob banners (15 placements), native ads, interstitials (30 s cooldown, on tab change), rewarded ads
+-  Ad placements switched on and off remotely from Firebase Realtime Database `ads_config`
+-  Rewarded-ad gating: live commentary unlocks 2 overs at a time; AI prediction unlocks 2 uses per ad
+-  Premium via Play Billing: `monthly_sub`, `half_yearly_sub`, `yearly_sub`, `lifetime_access`; removes ads, unlocks AI fantasy, gold theme
+-  iZooto push notifications (generic marketing push, not match-specific)
+-  Install counter POST to `quanrix.com/devcount/upcount.php`
+-  Rate, share, uninstall feedback
 
 Not present in Cricpeak: series or tournament pages, points tables, team pages, rankings, news, search, favourites, match alerts, player comparison, Manhattan/worm graphs, widget, share scorecard, offline cache (memory only), light theme, tablet/landscape layout, tests.
 

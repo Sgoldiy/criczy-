@@ -1,66 +1,41 @@
 # Roadmap
 
-## Architecture
+Everything in the README feature list is built. This page lists what is not.
 
-Multi-module, Clean Architecture, MVVM with unidirectional state.
+## Deferred by decision
 
-```
-app                       navigation, DI wiring, theme
-feature:home|match|series|team|player|news|search|favourites|settings|premium
-widget                    Glance live-score widget
-core:designsystem         Material 3 theme, typography, shared components, charts
-core:data                 repositories: network + database, offline-first, polling policy
-core:database             Room cache, favourites, search index
-core:datastore            preferences
-core:notifications        WorkManager match alerts
-core:ads                  AdMob behind an interface (no-op when unconfigured)
-core:ai                   Gemini behind an interface, key supplied at build time
-core:analytics            built
-core:network              built
-core:model                built
-```
+| Item | Notes |
+|---|---|
+| AdMob ads and rewarded unlocks | Needs your AdMob ids and Firebase config, supplied outside Git. See ARCHITECTURE.md for where it plugs in. |
+| AI match prediction and fantasy XI | Needs a new Gemini key. The old one was committed to a public repository and must be revoked. |
+| Premium purchases | Not requested for the new app. |
 
-Rules: features depend on `core` only, never on each other; only `core:network` knows the provider; UI state comes from Room so every screen works offline with a "last updated" marker.
+## Blocked by the data source
 
-Live updates: poll only while a screen showing a live match is visible, at 5–10 s for the open match and 30 s for lists, with backoff on errors and no polling for finished matches.
+| Item | Why |
+|---|---|
+| ICC rankings | No endpoint. |
+| Career statistics, career-based comparison | No endpoint. Comparison covers a match or a series instead. |
+| Player search by name across all players | No search endpoint. Search covers players seen in scorecards you have opened. |
+| Instant push alerts | No push server. Alerts are checked on the device about every 15 minutes, so a wicket alert can be several minutes late. |
 
-## Features
+## Cricpeak features changed on purpose
 
-Status key: **ready** = data and logic exist in the core modules; **planned** = data confirmed, UI not built; **blocked** = see note.
+| Cricpeak | Criczy |
+|---|---|
+| Commentary locked behind video ads every 2 overs | Open (ads deferred) |
+| Uninstall feedback screen writing to Firebase | Dropped: no backend. "Rate" and "Share" remain. |
+| Install counter sent to a third-party domain | Dropped |
+| iZooto marketing push | Replaced by on-device match alerts |
+| Exit confirmation dialog | Kept as an optional setting, off by default |
+| 5-second polling everywhere, forever | Interval chosen from match state; stops when the screen is hidden or the match is over |
+| Umpires always blank | Shown |
+| Portrait only | Phone and tablet layouts |
 
-| Feature | Status | Depends on |
-|---|---|---|
-| Live / upcoming / completed dashboard | planned | `matchBoard` |
-| Match centre: summary, scorecard, squads, officials, match info | planned | `matchDetail` |
-| Ball-by-ball commentary with paging | planned | `commentaryPage` |
-| Per-ball detail (line, length, shot, footwork) and single-shot view | planned | ball data |
-| Manhattan, worm, run-rate graphs | ready | `core:analytics` |
-| Wagon wheel (innings and per batter), pitch map | ready | `core:analytics` |
-| Partnerships, batter-v-bowler matchups, phase analysis | ready | `core:analytics` |
-| Projected score, target and required rate | ready | `core:analytics`, `MatchDetail.target` |
-| Series and tournament pages with fixtures and results | planned | `competitions`, `matchBoard(competitionId)` |
-| Points tables | planned | `standings` |
-| Team pages with fixtures and results | planned | `teams`, `matchBoard(teamId)` |
-| Player profiles | planned | `players`, scorecard squads |
-| News feed (headlines linking to publisher) | planned | `news`, `homeFeed` |
-| Match highlights list | planned | `highlights` |
-| Tournament leaderboards (runs, wickets) | planned | computed from a competition's scorecards |
-| Favourite teams, players, matches | planned | Room |
-| Match alerts (start, wicket, result) for favourites | planned | WorkManager polling; no push server |
-| Universal search | planned, limited | teams, competitions, and players already seen |
-| Player comparison | planned, limited | in-match and cached-match stats only |
-| Live-score widget | planned | Glance |
-| Shareable scorecard image | planned | |
-| Offline cache | planned | Room |
-| Light and dark themes, tablet layouts | planned | |
-| AI match prediction and fantasy XI | planned | new Gemini key, supplied outside the repo |
-| AdMob ads and rewarded unlocks | planned | AdMob ids and Firebase config, supplied outside the repo |
-| ICC rankings | blocked | not in the API |
-| Career statistics | blocked | not in the API |
+## Suggested next steps
 
-## Carried over from Cricpeak, changed on purpose
-
-- Fantasy XI will show an error when the AI fails instead of a random eleven labelled as AI.
-- No API key in source. The Gemini key ships via build configuration; a key inside an APK can still be extracted, so a small proxy is the proper fix later.
-- No install-counter call to a third-party domain, no cleartext traffic, no body logging in release.
-- Umpires and referee are shown; Cricpeak left them blank although the data was there.
+1. Real-device testing of the release build.
+2. Resolve data licensing.
+3. Tournament leaderboards currently read up to 40 scorecards per series; cache the result in Room.
+4. Split `app/feature/*` into Gradle modules once more than one person works on the code.
+5. Upgrade to AGP 9 and the current Kotlin and Compose releases.

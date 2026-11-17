@@ -75,6 +75,8 @@ internal data class CompetitionDto(
     @SerialName("Tour") val tour: TourRefDto? = null,
     /** The API sends this as the strings "true" / "false" / "". */
     @SerialName("HasStanding") val hasStanding: String = "",
+    /** A league tag such as "BBL" or "WBBL"; often the only format hint on upcoming fixtures. */
+    @SerialName("AssociatedMatchType") val associatedMatchType: String = "",
 )
 
 @Serializable
