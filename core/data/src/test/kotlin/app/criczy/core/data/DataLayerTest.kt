@@ -173,8 +173,8 @@ class DataLayerTest {
         assertTrue(players.recentForm(409).isEmpty(), "team unknown until seen in a scorecard")
         assertNotNull(matches.detail(40644))
         val form = players.recentForm(409, limit = 3)
-        assertTrue(form.isNotEmpty())
-        assertTrue(form.size <= 3)
+        // The test server answers every scorecard with the same match; it is listed once.
+        assertEquals(1, form.size)
         assertTrue(form.all { f -> f.batting.all { it.playerId == 409 } })
     }
 

@@ -160,7 +160,7 @@ class PlayerRepository(
                 async { try { remote.matchDetail(match.id) } catch (_: CricketApiException) { null } }
             }.awaitAll()
         }
-        return details.mapNotNull { detail -> detail?.let { playerMatchForm(it, playerId) } }.take(limit)
+        return details.filterNotNull().distinctBy { it.match.id }.mapNotNull { playerMatchForm(it, playerId) }.take(limit)
     }
 }
 

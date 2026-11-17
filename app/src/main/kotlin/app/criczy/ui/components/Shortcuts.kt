@@ -54,7 +54,7 @@ fun SeriesChip(competition: Competition, live: Boolean, onClick: () -> Unit) {
             Box(Modifier.size(7.dp).background(cricketColors.live, CircleShape))
             Spacer(Modifier.width(6.dp))
         }
-        Text(competition.name, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 200.dp))
+        Text(competition.name, style = MaterialTheme.typography.labelLarge, maxLines = 1, modifier = Modifier.widthIn(max = 200.dp).scrollingText())
     }
 }
 

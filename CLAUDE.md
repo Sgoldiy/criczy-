@@ -6,7 +6,7 @@ Read this before exploring. It records what is already known so it does not need
 
 Android cricket app (Kotlin, Jetpack Compose, Material 3) that replaces the owner's older app, Cricpeak (`Sgoldiy/CRICSCORE`, package `com.cricpeak.scorelive`). Do not modify that repository. Its audit is in `docs/CRICPEAK_AUDIT.md`; there is no need to read its code again.
 
-Status: feature-complete for v1.0.0, 110 tests passing, lint clean, release APK and AAB build. Never run on a real device or emulator.
+Status: feature-complete for v1.0.0, 112 tests passing, lint clean, release APK and AAB build. Never run on a real device or emulator.
 
 ## Decisions already made by the owner (do not re-ask)
 
@@ -32,7 +32,7 @@ Dependency direction: `app → core:data → core:network, core:analytics → co
 ## Commands
 
 ```bash
-./gradlew test                     # all 110 tests, about 4 minutes
+./gradlew test                     # all 112 tests, about 4 minutes
 ./gradlew :app:testDebugUnitTest   # UI tests only; screenshots go to app/build/screenshots
 ./gradlew :app:lintDebug
 ./gradlew :app:assembleDebug :app:assembleRelease :app:bundleRelease
