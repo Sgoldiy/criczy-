@@ -1,6 +1,15 @@
 package app.criczy.feature.match
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import app.criczy.ui.components.BallStoryKind
+import app.criczy.ui.components.OverGround
+import app.criczy.ui.components.replayMillis
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -110,7 +119,12 @@ internal fun CommentaryTab(detail: MatchDetail, state: CommentaryUiState, action
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
                 state.overs.forEach { over ->
                     if (over.isComplete || over != state.overs.first()) {
-                        item(key = "over-${over.number}") { Box(Modifier.animateItem()) { OverSummaryRow(detail, over) } }
+                        item(key = "over-${over.number}") {
+                            val key = "over-${over.number}"
+                            Box(Modifier.animateItem()) {
+                                OverSummaryRow(detail, over, expanded = open == key) { open = if (open == key) null else key }
+                            }
+                        }
                     }
                     // Keyed by position in the over: the feed sends no ball id, and a ball re-bowled
                     // after a wide or no-ball repeats its number, so neither is unique.
@@ -138,20 +152,153 @@ internal fun CommentaryTab(detail: MatchDetail, state: CommentaryUiState, action
 }
 
 @Composable
-private fun OverSummaryRow(detail: MatchDetail, over: Over) {
+private fun OverSummaryRow(detail: MatchDetail, over: Over, expanded: Boolean, onToggle: () -> Unit) {
     val bowler = over.bowlerId?.let { detail.player(it)?.name }
-    Row(
-        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("END OF OVER ${over.number}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            Text(
-                listOfNotNull("${over.runs} run${if (over.runs == 1) "" else "s"}", "${over.wickets} wkt".takeIf { over.wickets > 0 }, "maiden".takeIf { over.isMaiden }, bowler).joinToString(" · "),
-                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
+    val accent = cricketColors.accent
+    val turn by animateFloatAsState(if (expanded) 180f else 0f, tween(260), label = "overChevron")
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .clickable(role = Role.Button, onClickLabel = if (expanded) "Close the over replay" else "Replay the over", onClick = onToggle)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("END OF OVER ${over.number}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    listOfNotNull("${over.runs} run${if (over.runs == 1) "" else "s"}", "${over.wickets} wkt".takeIf { over.wickets > 0 }, "maiden".takeIf { over.isMaiden }, bowler).joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Replay over", style = MaterialTheme.typography.labelLarge, color = accent, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = turn })
+                }
+            }
+            Text("${over.inningsRuns}/${over.inningsWickets}", fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = 20.sp)
         }
-        Text("${over.inningsRuns}/${over.inningsWickets}", fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(tween(320)) + fadeIn(tween(320)),
+            exit = shrinkVertically(tween(260)) + fadeOut(tween(180)),
+        ) {
+            OverReplayPanel(detail, over)
+        }
+    }
+}
+
+/**
+ * The over replayed as a broadcast does when an over ends: each ball plays on the ground in
+ * turn, then the over summary shows every shot together with where each ball pitched. The
+ * strip of balls below follows along; tapping one plays the over from that ball.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun OverReplayPanel(detail: MatchDetail, over: Over) {
+    val balls = over.balls
+    var startAt by remember { mutableIntStateOf(0) }
+    var run by remember { mutableIntStateOf(0) }
+    var showing by remember { mutableIntStateOf(0) }
+    LaunchedEffect(run) {
+        for (i in startAt until balls.size) {
+            showing = i
+            delay(replayMillis(balls[i]) + 650L)
+        }
+        showing = balls.size
+    }
+    val bringIntoView = remember { BringIntoViewRequester() }
+    LaunchedEffect(Unit) {
+        delay(340)
+        bringIntoView.bringIntoView()
+    }
+    val accent = cricketColors.accent
+    val bowler = over.bowlerId?.let { detail.player(it)?.name } ?: "Bowler"
+    val stats = remember(over) {
+        val stories = balls.map { ballStory(it) }
+        listOfNotNull(
+            "${over.runs} run${if (over.runs == 1) "" else "s"}",
+            over.wickets.takeIf { it > 0 }?.let { "$it wicket${if (it == 1) "" else "s"}" },
+            balls.count { it.isLegal && it.teamRuns == 0 && !it.isWicket }.takeIf { it > 0 }?.let { "$it dot${if (it == 1) "" else "s"}" },
+            stories.count { it.kind == BallStoryKind.FOUR }.takeIf { it > 0 }?.let { "$it four${if (it == 1) "" else "s"}" },
+            stories.count { it.kind == BallStoryKind.SIX }.takeIf { it > 0 }?.let { "$it six${if (it == 1) "" else "es"}" },
+            over.extras.takeIf { it > 0 }?.let { "$it extra${if (it == 1) "" else "s"}" },
+            "Maiden".takeIf { over.isMaiden },
+        )
+    }
+    Panel(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp).bringIntoViewRequester(bringIntoView)) {
+        Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("OVER ${over.number} · $bowler", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    AnimatedContent(
+                        targetState = showing,
+                        transitionSpec = { (slideInVertically { it / 2 } + fadeIn()) togetherWith (slideOutVertically { -it / 2 } + fadeOut()) },
+                        label = "overNowPlaying",
+                    ) { i ->
+                        if (i < balls.size) {
+                            val ball = balls[i]
+                            val story = ballStory(ball)
+                            val batter = detail.player(ball.batterId)?.name ?: "Batter"
+                            Text(
+                                buildAnnotatedString {
+                                    append("${ball.overNumber - 1}.${ball.ballNumber} · $batter · ")
+                                    withStyle(SpanStyle(color = storyColor(story.kind), fontWeight = FontWeight.Bold)) { append(story.headline) }
+                                },
+                                style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                        } else {
+                            Text("Over summary", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                TextButton(onClick = { startAt = 0; run++ }) {
+                    Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Replay")
+                }
+            }
+            AnimatedContent(
+                targetState = showing,
+                transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(220)) },
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.align(Alignment.CenterHorizontally).fillMaxWidth().widthIn(max = 480.dp).padding(horizontal = 8.dp),
+                label = "overGround",
+            ) { i ->
+                if (i < balls.size) BallGround(balls[i], Modifier.fillMaxWidth(), animate = true, replayKey = run)
+                else OverGround(balls, Modifier.fillMaxWidth(), animate = true, replayKey = run)
+            }
+            // The over, ball by ball; the one on the ground is ringed.
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                balls.forEachIndexed { i, ball ->
+                    val current = i == showing
+                    val scale by animateFloatAsState(if (current) 1.12f else 1f, label = "overStripBall")
+                    Box(
+                        Modifier.graphicsLayer { scaleX = scale; scaleY = scale }
+                            .border(2.dp, if (current) accent else Color.Transparent, CircleShape)
+                            .clip(CircleShape)
+                            .clickable(onClickLabel = "Play from ball ${i + 1}") { startAt = i; run++ }
+                            .padding(3.dp),
+                    ) { BallChip(ball, size = 30) }
+                }
+                val onSummary = showing == balls.size
+                Text(
+                    "Summary",
+                    style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold,
+                    color = if (onSummary) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clip(RoundedCornerShape(50))
+                        .border(2.dp, if (onSummary) accent else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(50))
+                        .clickable(onClickLabel = "Show the over summary") { startAt = balls.size; run++ }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) { stats.forEach { Pill(it) } }
+        }
     }
 }
 

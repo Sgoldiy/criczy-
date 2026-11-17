@@ -42,6 +42,8 @@ import app.criczy.feature.match.CommentaryTab
 import app.criczy.feature.match.CommentaryUiState
 import app.criczy.feature.match.LatestBall
 import app.criczy.feature.match.MatchActions
+import app.criczy.feature.match.OverReplayPanel
+import app.criczy.ui.components.replayMillis
 import app.criczy.feature.match.ScoreEvent
 import app.criczy.feature.match.ScoreEventOverlay
 import app.criczy.feature.match.ScoreEventType
@@ -173,6 +175,10 @@ class ScreensTest {
         compose.onAllNodesWithText("See ball · MISSED").onFirst().performClick()
         compose.waitUntil(5_000) { groundsShowing("missed, played a drive") == 1 && groundsShowing("wicket, Caught · bowler") == 0 }
         compose.screenshot("match-commentary-open-dot-phone-dark")
+        // The end of an over replays the whole over; opening it closes the open ball.
+        compose.onAllNodes(hasScrollToNodeAction()).onLast().performScrollToNode(hasText("Replay over", substring = true))
+        compose.onAllNodesWithText("Replay over", substring = true).onFirst().performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Summary").fetchSemanticsNodes().isNotEmpty() && groundsShowing("missed, played a drive") == 0 }
 
         compose.onNodeWithText("Analysis").performScrollTo().performClick()
         compose.awaitText("WORM")
@@ -274,6 +280,26 @@ class ScreensTest {
 
     private fun groundsShowing(description: String) =
         compose.onAllNodes(hasContentDescription(description, substring = true)).fetchSemanticsNodes().size
+
+    @Test
+    fun `an over replays ball by ball, then shows the over summary`() {
+        val remote = FixtureServer.remote()
+        val (detail, page) = runBlocking { remote.matchDetail(40644)!! to remote.commentaryPage(40644, inningsNumber = 2) }
+        val over = page.overs.filter { it.isComplete }.maxBy { o -> o.balls.count { it.shotAngle != null && it.batterRuns > 0 } }
+        compose.mainClock.autoAdvance = false
+        compose.setCriczyContent { Box(Modifier.fillMaxSize()) { OverReplayPanel(detail, over) } }
+        compose.waitForIdle()
+        compose.mainClock.advanceTimeByFrame()
+        compose.mainClock.advanceTimeBy(700)
+        // First ball on the ground, the strip below marking it.
+        compose.onNodeWithText("${over.number - 1}.${over.balls.first().ballNumber}", substring = true).assertExists()
+        compose.screenshot("over-replay-1-first-ball-phone-dark")
+        val whole = over.balls.sumOf { replayMillis(it) + 650L } + 380L * over.balls.size + 2_000L
+        compose.mainClock.advanceTimeBy(whole)
+        compose.onNode(hasContentDescription("over summary", substring = true)).assertExists()
+        compose.onNodeWithText("Over summary").assertExists()
+        compose.screenshot("over-replay-2-summary-phone-dark")
+    }
 
     @Test
     fun `opening a ball replays it like a broadcast, from the bowler's hand to the shot`() {
