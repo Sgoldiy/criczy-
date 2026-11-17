@@ -1,6 +1,17 @@
 package app.criczy.feature.match
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.text.AnnotatedString
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.animation.AnimatedContent
@@ -10,7 +21,6 @@ import androidx.compose.animation.togetherWith
 import app.criczy.ui.components.BallStoryKind
 import app.criczy.ui.components.OverGround
 import androidx.compose.foundation.layout.height
-import app.criczy.ui.components.OverPitchMap
 import app.criczy.ui.components.replayMillis
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -109,74 +119,214 @@ import androidx.compose.runtime.setValue
 @Composable
 internal fun CommentaryTab(detail: MatchDetail, state: CommentaryUiState, actions: MatchActions) {
     if (!detail.hasCommentary) return TabEmpty("No commentary", "Ball-by-ball commentary isn't provided for this match.")
+    var filter by rememberSaveable { mutableStateOf(CommentaryFilter.ALL) }
     Column(Modifier.fillMaxSize()) {
         InningsChips(detail, state.inningsNumber ?: detail.currentInnings?.number ?: 1, actions.onSelectCommentaryInnings)
         when {
             state.overs.isEmpty() && state.loading -> SkeletonList(count = 6, itemHeight = 64.dp)
             state.overs.isEmpty() && state.error != null -> ErrorState(state.error, actions.onRefresh)
             state.overs.isEmpty() -> TabEmpty("No commentary yet", "Commentary appears here as soon as the first ball is bowled.")
-            else -> {
-                // One ball open at a time; opening another closes the first. Reset per innings.
-                var open by rememberSaveable(state.inningsNumber) { mutableStateOf<String?>(null) }
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
-                state.overs.forEach { over ->
-                    if (over.isComplete || over != state.overs.first()) {
-                        item(key = "over-${over.number}") {
-                            val key = "over-${over.number}"
-                            Box(Modifier.animateItem()) {
-                                OverSummaryRow(detail, over, expanded = open == key) { open = if (open == key) null else key }
-                            }
-                        }
-                    }
-                    // Keyed by position in the over: the feed sends no ball id, and a ball re-bowled
-                    // after a wide or no-ball repeats its number, so neither is unique.
-                    val last = over.balls.lastIndex
-                    items(over.balls.size, key = { "ball-${over.number}-${last - it}" }) { index ->
-                        val ball = over.balls[last - index]
-                        val key = "ball-${over.number}-${last - index}"
-                        Box(Modifier.animateItem()) {
-                            BallRow(detail, ball, expanded = open == key) { open = if (open == key) null else key }
-                        }
-                    }
-                }
-                if (state.canLoadOlder) {
-                    item(key = "older") {
-                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            if (state.loadingOlder) CircularProgressIndicator(Modifier.size(28.dp))
-                            else OutlinedButton(onClick = actions.onLoadOlderCommentary) { Text("Load earlier overs") }
-                        }
-                    }
-                }
-                }
-            }
+            else -> CommentaryFeed(detail, state, actions, filter) { filter = it }
         }
     }
 }
 
 @Composable
-private fun OverSummaryRow(detail: MatchDetail, over: Over, expanded: Boolean, onToggle: () -> Unit) {
+private fun CommentaryFeed(
+    detail: MatchDetail,
+    state: CommentaryUiState,
+    actions: MatchActions,
+    filter: CommentaryFilter,
+    onFilter: (CommentaryFilter) -> Unit,
+) {
+    // One ball or over open at a time; opening another closes the first. Reset per innings.
+    var open by rememberSaveable(state.inningsNumber) { mutableStateOf<String?>(null) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val live = detail.match.state != MatchState.COMPLETED && state.inningsNumber == detail.currentInnings?.number
+    val balls = remember(state.overs) { state.overs.flatMap { it.balls } }
+    val counts = remember(balls) { CommentaryFilter.entries.associateWith { f -> balls.count(f::accepts) } }
+
+    LaunchedEffect(state.inningsNumber, filter) { listState.scrollToItem(0) }
+
+    // A new ball arrives at the top of the list. Someone reading from the top sees it come in;
+    // someone who has scrolled away gets a button back to it instead of losing their place.
+    val newest = latestBall(state)
+    val newestId = newest?.id
+    val wasAtTop = remember(newestId) {
+        Snapshot.withoutReadObservation { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset < 48 }
+    }
+    var seenId by remember(state.inningsNumber) { mutableStateOf<Long?>(null) }
+    var unseen by remember(state.inningsNumber) { mutableStateOf<LatestBall?>(null) }
+    LaunchedEffect(newestId) {
+        val before = seenId
+        seenId = newestId
+        if (newest == null || before == null || newestId == before) return@LaunchedEffect
+        if (wasAtTop) listState.animateScrollToItem(0) else unseen = newest
+    }
+    val atTop by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
+    LaunchedEffect(atTop) { if (atTop) unseen = null }
+
+    // Earlier overs load on their own at the end of the list. A page that fails is not retried
+    // automatically: the button stays for that.
+    val nearEnd by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+            info.totalItemsCount > 0 && last >= info.totalItemsCount - 2
+        }
+    }
+    val oldestOver = state.overs.lastOrNull()?.number
+    var autoLoadedFrom by remember(state.inningsNumber) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(nearEnd, oldestOver, state.canLoadOlder, state.loadingOlder, filter) {
+        if (filter == CommentaryFilter.ALL && nearEnd && state.canLoadOlder && !state.loadingOlder && oldestOver != null && autoLoadedFrom != oldestOver) {
+            autoLoadedFrom = oldestOver
+            actions.onLoadOlderCommentary()
+        }
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CommentaryFilter.entries.forEach { f ->
+                FilterChip(
+                    selected = filter == f,
+                    onClick = { onFilter(f) },
+                    label = { Text(if (f == CommentaryFilter.ALL) f.label else "${f.label} · ${counts[f]}") },
+                )
+            }
+        }
+        Box(Modifier.fillMaxSize()) {
+            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 28.dp)) {
+                if (filter == CommentaryFilter.ALL) {
+                    state.overs.forEachIndexed { overIndex, over ->
+                        val title = when {
+                            over.isComplete -> "END OF OVER ${over.number}"
+                            overIndex == 0 && live -> "OVER ${over.number} · IN PROGRESS"
+                            else -> "OVER ${over.number}"
+                        }
+                        item(key = "over-${over.number}") {
+                            val key = "over-${over.number}"
+                            Box(Modifier.animateItem()) {
+                                OverSummaryRow(detail, over, title, expanded = open == key) { open = if (open == key) null else key }
+                            }
+                        }
+                        // Keyed by position in the over: the feed sends no ball id, and a ball re-bowled
+                        // after a wide or no-ball repeats its number, so neither is unique.
+                        val last = over.balls.lastIndex
+                        items(over.balls.size, key = { "ball-${over.number}-${last - it}" }) { index ->
+                            val ball = over.balls[last - index]
+                            val key = "ball-${over.number}-${last - index}"
+                            Box(Modifier.animateItem()) {
+                                BallRow(detail, ball, expanded = open == key) { open = if (open == key) null else key }
+                            }
+                        }
+                    }
+                } else {
+                    val matches = state.overs.flatMap { over -> over.balls.indices.reversed().map { over to it } }
+                        .filter { (over, index) -> filter.accepts(over.balls[index]) }
+                    if (matches.isEmpty()) {
+                        item(key = "none") {
+                            Text(
+                                "No ${filter.label.lowercase()} in overs ${state.overs.last().number}–${state.overs.first().number}.",
+                                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                            )
+                        }
+                    }
+                    items(matches, key = { (over, index) -> "ball-${over.number}-$index" }) { (over, index) ->
+                        val key = "ball-${over.number}-$index"
+                        Box(Modifier.animateItem()) {
+                            BallRow(detail, over.balls[index], expanded = open == key) { open = if (open == key) null else key }
+                        }
+                    }
+                }
+                if (state.canLoadOlder) {
+                    item(key = "older") {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            if (filter != CommentaryFilter.ALL) {
+                                Text(
+                                    "Searched overs ${state.overs.last().number}–${state.overs.first().number}",
+                                    style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(bottom = 8.dp),
+                                )
+                            }
+                            if (state.loadingOlder) CircularProgressIndicator(Modifier.size(28.dp))
+                            else OutlinedButton(onClick = actions.onLoadOlderCommentary) { Text("Load earlier overs") }
+                        }
+                    }
+                }
+            }
+            NewBallButton(
+                latest = unseen.takeIf { filter == CommentaryFilter.ALL },
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+            ) {
+                unseen = null
+                scope.launch { listState.animateScrollToItem(0) }
+            }
+        }
+    }
+}
+
+/** Takes someone who scrolled down back to the ball that just arrived; hidden while [latest] is null. */
+@Composable
+private fun NewBallButton(latest: LatestBall?, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    // Keep the last ball while the button slides away.
+    var shown by remember { mutableStateOf(latest) }
+    if (latest != null) shown = latest
+    val colors = cricketColors
+    AnimatedVisibility(
+        visible = latest != null,
+        modifier = modifier,
+        enter = slideInVertically { -it } + fadeIn(),
+        exit = slideOutVertically { -it } + fadeOut(),
+    ) {
+        val story = remember(shown?.id) { shown?.let { ballStory(it.ball) } }
+        Row(
+            Modifier.shadow(6.dp, RoundedCornerShape(50)).clip(RoundedCornerShape(50)).background(colors.accent)
+                .clickable(role = Role.Button, onClickLabel = "Go to the newest ball", onClick = onClick)
+                .padding(start = 10.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Filled.KeyboardArrowUp, contentDescription = null, tint = colors.onAccent, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("New ball${story?.let { " · ${it.headline}" }.orEmpty()}", color = colors.onAccent, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun OverSummaryRow(detail: MatchDetail, over: Over, title: String, expanded: Boolean, onToggle: () -> Unit) {
     val bowler = over.bowlerId?.let { detail.player(it)?.name }
     val accent = cricketColors.accent
     val turn by animateFloatAsState(if (expanded) 180f else 0f, tween(260), label = "overChevron")
     Column(Modifier.fillMaxWidth()) {
-        Row(
+        Column(
             Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .clickable(role = Role.Button, onClickLabel = if (expanded) "Close the over replay" else "Replay the over", onClick = onToggle)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
         ) {
-            Column(Modifier.weight(1f)) {
-                Text("END OF OVER ${over.number}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("${over.inningsRuns}/${over.inningsWickets}", fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            }
+            // The over at a glance, ball by ball in the order bowled.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                over.balls.forEach { BallChip(it, size = 26) }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     listOfNotNull("${over.runs} run${if (over.runs == 1) "" else "s"}", "${over.wickets} wkt".takeIf { over.wickets > 0 }, "maiden".takeIf { over.isMaiden }, bowler).joinToString(" · "),
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
-                Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Replay over", style = MaterialTheme.typography.labelLarge, color = accent, fontWeight = FontWeight.Bold)
-                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = turn })
-                }
+                Text("Replay over", style = MaterialTheme.typography.labelLarge, color = accent, fontWeight = FontWeight.Bold)
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = turn })
             }
-            Text("${over.inningsRuns}/${over.inningsWickets}", fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = 20.sp)
         }
         AnimatedVisibility(
             visible = expanded,
@@ -268,11 +418,7 @@ internal fun OverReplayPanel(detail: MatchDetail, over: Over) {
                 if (i < balls.size) {
                     BallGround(balls[i], Modifier.fillMaxWidth(), animate = true, replayKey = run)
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OverGround(balls, Modifier.fillMaxWidth(), animate = true, replayKey = run)
-                        Text("WHERE EACH BALL PITCHED", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp, top = 4.dp))
-                        OverPitchMap(balls, Modifier.fillMaxWidth().height(280.dp).padding(horizontal = 6.dp), animate = true, replayKey = run)
-                    }
+                    OverGround(balls, Modifier.fillMaxWidth(), animate = true, replayKey = run)
                 }
             }
             // The over, ball by ball; the one on the ground is ringed.
@@ -316,24 +462,49 @@ internal fun OverReplayPanel(detail: MatchDetail, over: Over) {
 
 @Composable
 private fun BallRow(detail: MatchDetail, ball: Ball, expanded: Boolean, onToggle: () -> Unit) {
-    val comments = ball.commentary.filterNot { it.isEndOfOver }
-    Column(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 9.dp, bottom = if (expanded) 4.dp else 9.dp)) {
+    val story = remember(ball) { ballStory(ball) }
+    val keyMoment = story.kind == BallStoryKind.WICKET || story.kind == BallStoryKind.FOUR || story.kind == BallStoryKind.SIX
+    val tone = storyColor(story.kind)
+    val bowler = detail.player(ball.bowlerId)?.name
+    val batter = detail.player(ball.batterId)?.name
+    val paragraphs = remember(ball, bowler, batter) {
+        val comments = ball.commentary.filterNot { it.isEndOfOver }
+        if (comments.isEmpty()) {
+            listOf(CommentaryLines("${bowler ?: "Bowler"} to ${batter ?: "batter"}", spokenBall(ball).replaceFirstChar { it.uppercaseChar() }))
+        } else {
+            comments.map { commentaryLines(it.text, bowler, batter) ?: CommentaryLines("", it.text) }
+        }
+    }
+    Column(
+        Modifier.fillMaxWidth().then(
+            // Wickets and boundaries stand out while scrolling: a tint and an edge in their colour.
+            if (keyMoment) Modifier.background(tone.copy(alpha = 0.07f)).drawBehind { drawRect(tone, size = Size(3.dp.toPx(), size.height)) } else Modifier,
+        ),
+    ) {
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = if (expanded) 4.dp else 10.dp)) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(44.dp)) {
                 Text("${ball.overNumber - 1}.${ball.ballNumber}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.size(4.dp))
                 BallChip(ball, size = 32)
             }
             Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                if (comments.isEmpty()) {
-                    val bowler = detail.player(ball.bowlerId)?.name ?: "Bowler"
-                    val batter = detail.player(ball.batterId)?.name ?: "batter"
-                    Text("$bowler to $batter, ${spokenBall(ball)}", style = MaterialTheme.typography.bodyMedium)
-                } else {
-                    comments.forEach { Text(it.text, style = MaterialTheme.typography.bodyMedium) }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                paragraphs.forEach { lines ->
+                    if (lines.heading.isNotEmpty()) {
+                        Text(lines.heading, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    }
+                    if (lines.body.isNotEmpty()) {
+                        val cut = if (ball.isWicket) dismissalSentenceStart(lines.body) else -1
+                        Text(
+                            if (cut < 0) AnnotatedString(lines.body) else buildAnnotatedString {
+                                append(lines.body.substring(0, cut))
+                                withStyle(SpanStyle(color = tone, fontWeight = FontWeight.Bold)) { append(lines.body.substring(cut)) }
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                 }
-                Spacer(Modifier.size(8.dp))
+                Spacer(Modifier.size(6.dp))
                 SeeShotLink(ball, expanded, onToggle)
             }
         }

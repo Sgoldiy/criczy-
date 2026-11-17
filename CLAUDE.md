@@ -6,7 +6,7 @@ Read this before exploring. It records what is already known so it does not need
 
 Android cricket app (Kotlin, Jetpack Compose, Material 3) that replaces the owner's older app, Cricpeak (`Sgoldiy/CRICSCORE`, package `com.cricpeak.scorelive`). Do not modify that repository. Its audit is in `docs/CRICPEAK_AUDIT.md`; there is no need to read its code again.
 
-Status: feature-complete for v1.0.0, 78 tests passing, lint clean, release APK and AAB build. Never run on a real device or emulator.
+Status: feature-complete for v1.0.0, 99 tests passing, lint clean, release APK and AAB build. Never run on a real device or emulator.
 
 ## Decisions already made by the owner (do not re-ask)
 
@@ -32,7 +32,7 @@ Dependency direction: `app → core:data → core:network, core:analytics → co
 ## Commands
 
 ```bash
-./gradlew test                     # all 78 tests, about 2 minutes
+./gradlew test                     # all 99 tests, about 4 minutes
 ./gradlew :app:testDebugUnitTest   # UI tests only; screenshots go to app/build/screenshots
 ./gradlew :app:lintDebug
 ./gradlew :app:assembleDebug :app:assembleRelease :app:bundleRelease
@@ -74,7 +74,8 @@ $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-
 - Live events come from the newest ball in the commentary feed (`detectBallEvent`), falling back to score changes for matches without commentary. In tests with the paused clock (`mainClock.autoAdvance = false`), a state change needs `waitForIdle()` plus `advanceTimeByFrame()` before `advanceTimeBy`.
 - Every top bar title goes through `AppTitle` (white then accent, CRIC·ZY style; titles render in capitals, so tests must match capitals). The phone bottom bar is the custom `FloatingBottomBar` in `CriczyNavHost`; tablets keep the `NavigationRail`.
 - Commentary: each ball ends with a "See shot · FOUR" link; tapping it opens one ball at a time with `BallGround` replaying it (zoomed on the pitch from the bowler's hand, bounce from `bounceFraction(length)`, line from `lineOffset(line)`, then the camera pulls back for the shot). Drawn from behind the bowler: batter at the top, a right-hander's off side on the left; `shotEnd` turns the provider's behind-the-batter frame 180°. `ballStory` gives the label; dot balls never draw an arrow. The search test's tap on a result is flaky (also before these changes).
-- "END OF OVER" rows open `OverReplayPanel` in the same one-at-a-time accordion as balls: each ball plays in `BallGround` for `replayMillis(ball)` + 650 ms, then `OverGround` draws the over's shots numbered in bowling order and `OverPitchMap` shows where each ball pitched as a line × length grid (`lineColumn`, `lengthRow`); balls sharing a cell are laid out side by side by `pitchPlaces`, never stacked, because the feed gives categories, not coordinates.
+- Over rows ("END OF OVER n", or "OVER n · IN PROGRESS" live) show the over's balls as chips and open `OverReplayPanel` in the same one-at-a-time accordion as balls: each ball plays in `BallGround` for `replayMillis(ball)` + 650 ms, then `OverGround` shows the over's shots numbered in bowling order. The owner removed the over pitch map; do not add it back.
+- Commentary feed (`CommentaryFeed`): filters All/Wickets/Boundaries (`CommentaryFilter`); `commentaryLines` splits "OUT! Bowler to Batter. …" into a heading and description using the scorecard names (all fixture messages match). A LazyColumn keeps its place by key, so a ball added above the first visible item stays off-screen: the feed checks "was at top" with `Snapshot.withoutReadObservation` when the newest ball changes and scrolls up, otherwise shows the "New ball" button. Earlier overs load on reaching the end, once per page (a failed page is not retried automatically).
 - Pushing needs the Claude GitHub App to have write access to `Sgoldiy/criczy-`. A 403 on push is a permission problem for the owner to fix, not something to retry.
 
 ## API facts (full detail in `docs/API.md`)

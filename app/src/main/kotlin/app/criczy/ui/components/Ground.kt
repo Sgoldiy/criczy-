@@ -448,8 +448,7 @@ internal fun deliveryOf(ball: Ball, c: Offset, r: Float): Delivery {
 
 /**
  * An over at a glance, as a broadcast shows it when the over ends: every shot of the over from
- * the batter's end, numbered in the order bowled. Where each ball pitched is on
- * [OverPitchMap]. With [animate] the shots are drawn in turn.
+ * the batter's end, numbered in the order bowled. With [animate] the shots are drawn in turn.
  */
 @Composable
 fun OverGround(balls: List<Ball>, modifier: Modifier = Modifier, animate: Boolean = false, replayKey: Any? = null) {

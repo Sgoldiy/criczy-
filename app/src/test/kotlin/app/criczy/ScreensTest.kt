@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.size
@@ -39,14 +40,16 @@ import androidx.compose.ui.test.assertCountEquals
 import app.criczy.core.model.Ball
 import app.criczy.core.model.BallOutcome
 import app.criczy.feature.match.CommentaryTab
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.performScrollToIndex
+import app.criczy.feature.match.CommentaryFilter
+import app.criczy.feature.match.commentaryLines
+import app.criczy.feature.match.dismissalSentenceStart
 import app.criczy.feature.match.CommentaryUiState
 import app.criczy.feature.match.LatestBall
 import app.criczy.feature.match.MatchActions
 import app.criczy.feature.match.OverReplayPanel
 import app.criczy.ui.components.replayMillis
-import app.criczy.ui.components.lineColumn
-import app.criczy.ui.components.lengthRow
-import app.criczy.ui.components.pitchPlaces
 import app.criczy.feature.match.ScoreEvent
 import app.criczy.feature.match.ScoreEventOverlay
 import app.criczy.feature.match.ScoreEventType
@@ -168,6 +171,7 @@ class ScreensTest {
 
         compose.onNodeWithText("Commentary").performClick()
         awaitGrounds()
+        compose.screenshot("match-commentary-feed-phone-dark")
         // Each ball ends with a link saying what happened; the ground stays closed until asked for.
         assertEquals(0, groundsShowing("wicket, Caught · bowler"))
         compose.onNodeWithText("See shot · WICKET").performClick()
@@ -284,20 +288,102 @@ class ScreensTest {
     private fun groundsShowing(description: String) =
         compose.onAllNodes(hasContentDescription(description, substring = true)).fetchSemanticsNodes().size
 
-    @Test
-    fun `the pitch map puts every ball of an over in its own place`() {
-        // Every line and length the feed uses has a cell.
-        listOf("Wide", "Outside off", "Off stump", "Middle stump", "Leg stump", "Down leg", "Wide down leg").forEachIndexed { i, line -> assertEquals(i, lineColumn(line)) }
-        listOf("Full toss", "Yorker", "Half volley", "Length ball", "Back of a length", "Short", "Half tracker").forEachIndexed { i, length -> assertEquals(i, lengthRow(length)) }
-        assertEquals(0, lengthRow("Beamer"))
+    private fun commentaryFixture(): Pair<app.criczy.core.model.MatchDetail, List<app.criczy.core.model.Over>> {
+        val remote = FixtureServer.remote()
+        val (detail, page) = runBlocking { remote.matchDetail(40644)!! to remote.commentaryPage(40644, inningsNumber = 2) }
+        return detail to page.overs.sortedByDescending { it.number }
+    }
 
-        val over = runBlocking { FixtureServer.remote().commentaryPage(40644, inningsNumber = 2) }.overs.first { it.number == 11 }
-        val places = pitchPlaces(over.balls)
-        // All outside off: two half volleys and four length balls, which used to share two marks.
-        assertTrue(places.all { it != null && it.column == lineColumn("Outside off") })
-        assertEquals(listOf(2, 3, 3, 3, 3, 2), places.map { it!!.row })
-        assertEquals(4, places[1]!!.sharing)
-        assertEquals(places.size, places.map { Triple(it!!.column, it.row, it.slot) }.toSet().size, "no two balls in the same place")
+    private fun seeLinks(): List<String> =
+        compose.onAllNodes(hasText("See shot ·", substring = true).or(hasText("See ball ·", substring = true)))
+            .fetchSemanticsNodes().map { node -> node.config[SemanticsProperties.Text].joinToString(" ") }
+
+    @Test
+    fun `commentary reads as bowler to batter, then what happened`() {
+        val (detail, overs) = commentaryFixture()
+        val balls = overs.flatMap { it.balls }
+        fun linesOf(ball: Ball) = ball.commentary.firstOrNull { !it.isEndOfOver }
+            ?.let { commentaryLines(it.text, detail.player(ball.bowlerId)?.name, detail.player(ball.batterId)?.name) }
+        // Every message in the feed starts with the scorecard's bowler and batter.
+        assertTrue(balls.filter { b -> b.commentary.any { !it.isEndOfOver } }.all { linesOf(it) != null })
+        val four = balls.first { it.outcome == BallOutcome.FOUR }
+        val lines = linesOf(four)!!
+        assertEquals("${detail.player(four.bowlerId)!!.name} to ${detail.player(four.batterId)!!.name}", lines.heading)
+        assertTrue(!lines.body.startsWith("FOUR") && !lines.body.startsWith(".") && lines.body.isNotBlank(), lines.body)
+        // The closing "Batter Caught for 2." of a wicket is found so it can be set apart.
+        val out = linesOf(balls.first { it.isWicket })!!.body
+        val cut = dismissalSentenceStart(out)
+        assertTrue(cut > 0 && Regex(""" for \d+\.?$""").containsMatchIn(out.substring(cut)), out)
+        // Anything in another shape is shown as it came.
+        assertEquals(null, commentaryLines("Drinks break.", "A Bowler", "A Batter"))
+    }
+
+    @Test
+    fun `commentary filters to wickets and boundaries`() {
+        val (detail, overs) = commentaryFixture()
+        val balls = overs.flatMap { it.balls }
+        val none = MatchActions({}, {}, {}, {}, {}, {}, { _, _ -> }, {}, {}, {}, {}, {})
+        compose.setCriczyContent { Surface { CommentaryTab(detail, CommentaryUiState(inningsNumber = 2, overs = overs, loading = false), none) } }
+        awaitGrounds()
+        compose.onNodeWithText("Wickets · ${balls.count { it.isWicket }}").performClick()
+        compose.waitForIdle()
+        assertTrue(seeLinks().isNotEmpty() && seeLinks().all { "WICKET" in it }, seeLinks().toString())
+        assertEquals(0, compose.onAllNodesWithText("END OF OVER", substring = true).fetchSemanticsNodes().size, "over rows are left out")
+        compose.screenshot("commentary-wickets-phone-dark")
+        compose.onNodeWithText("Boundaries · ${balls.count { CommentaryFilter.BOUNDARIES.accepts(it) }}").performClick()
+        compose.waitForIdle()
+        assertTrue(seeLinks().isNotEmpty() && seeLinks().all { "FOUR" in it || "SIX" in it }, seeLinks().toString())
+        compose.onNodeWithText("All").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("END OF OVER", substring = true).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test
+    fun `a new ball comes into view at the top, or behind a button for someone scrolled away`() {
+        val (detail, full) = commentaryFixture()
+        val live = detail.copy(match = detail.match.copy(state = MatchState.LIVE))
+        val current = full.first()
+        val beforeOver = full.drop(1)
+        val twoBalls = listOf(current.copy(balls = current.balls.dropLast(1))) + beforeOver
+        var feed by mutableStateOf(CommentaryUiState(inningsNumber = 2, overs = beforeOver, loading = false))
+        val none = MatchActions({}, {}, {}, {}, {}, {}, { _, _ -> }, {}, {}, {}, {}, {})
+        compose.setCriczyContent { Surface { CommentaryTab(live, feed, none) } }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("END OF OVER ${current.number - 1}").fetchSemanticsNodes().isNotEmpty() }
+
+        // Reading from the top: a new over arrives above and comes into view.
+        compose.runOnIdle { feed = feed.copy(overs = twoBalls) }
+        compose.waitForIdle()
+        compose.onNodeWithText("OVER ${current.number} · IN PROGRESS").assertIsDisplayed()
+
+        // Scrolled away: the reader keeps their place and gets a button back to the new ball.
+        compose.onAllNodes(hasScrollToNodeAction()).onLast().performScrollToNode(hasText("END OF OVER 13"))
+        compose.runOnIdle { feed = feed.copy(overs = full) }
+        compose.waitForIdle()
+        compose.onNodeWithText("END OF OVER 13").assertIsDisplayed()
+        val story = ballStory(current.balls.last())
+        compose.onNodeWithText("New ball · ${story.headline}").assertIsDisplayed()
+        compose.screenshot("commentary-new-ball-phone-dark")
+        compose.onNodeWithText("New ball · ${story.headline}").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("OVER ${current.number} · IN PROGRESS").assertIsDisplayed()
+        assertEquals(0, compose.onAllNodesWithText("New ball", substring = true).fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun `reaching the end of the commentary loads earlier overs, once per page`() {
+        val (detail, overs) = commentaryFixture()
+        var calls = 0
+        val actions = MatchActions({}, {}, {}, {}, {}, {}, { _, _ -> }, {}, { calls++ }, {}, {}, {})
+        compose.setCriczyContent { Surface { CommentaryTab(detail, CommentaryUiState(inningsNumber = 2, overs = overs, loading = false, canLoadOlder = true), actions) } }
+        awaitGrounds()
+        assertEquals(0, calls)
+        compose.onAllNodes(hasScrollToNodeAction()).onLast().performScrollToNode(hasText("Load earlier overs"))
+        compose.waitForIdle()
+        assertEquals(1, calls)
+        // The page did not arrive (as when offline): it is not asked for again on its own.
+        compose.onAllNodes(hasScrollToNodeAction()).onLast().performScrollToIndex(0)
+        compose.onAllNodes(hasScrollToNodeAction()).onLast().performScrollToNode(hasText("Load earlier overs"))
+        compose.waitForIdle()
+        assertEquals(1, calls)
     }
 
     @Test
@@ -318,7 +404,6 @@ class ScreensTest {
         compose.mainClock.advanceTimeBy(whole)
         compose.onNode(hasContentDescription("over summary", substring = true)).assertExists()
         compose.onNodeWithText("Over summary").assertExists()
-        compose.onNode(hasContentDescription("Pitch map: ball 1 half volley, outside off", substring = true)).assertExists()
         compose.screenshot("over-replay-2-summary-phone-dark")
     }
 
