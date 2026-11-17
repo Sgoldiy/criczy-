@@ -73,6 +73,7 @@ $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-
 - Commentary feed: the mobile feed has no ball ids and a ball re-bowled after a wide repeats its ball number, so list keys must not use either. A fixture can appear in two buckets at once; the mapper keeps the first.
 - Live events come from the newest ball in the commentary feed (`detectBallEvent`), falling back to score changes for matches without commentary. In tests with the paused clock (`mainClock.autoAdvance = false`), a state change needs `waitForIdle()` plus `advanceTimeByFrame()` before `advanceTimeBy`.
 - Every top bar title goes through `AppTitle` (white then accent, CRIC·ZY style; titles render in capitals, so tests must match capitals). The phone bottom bar is the custom `FloatingBottomBar` in `CriczyNavHost`; tablets keep the `NavigationRail`.
+- Commentary grounds (`BallGround`) are drawn from behind the bowler: batter at the top end, a right-hander's off side on the left. The provider's frame is behind the batter, so `shotEnd` turns it 180°. `ballStory` turns a ball into the label (SINGLE, FOUR, MISSED, DEFENDED…); dot balls never draw an arrow. The search test's tap on a result is flaky (also before these changes).
 - Pushing needs the Claude GitHub App to have write access to `Sgoldiy/criczy-`. A 403 on push is a permission problem for the owner to fix, not something to retry.
 
 ## API facts (full detail in `docs/API.md`)

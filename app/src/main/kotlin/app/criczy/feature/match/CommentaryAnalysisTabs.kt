@@ -2,7 +2,7 @@ package app.criczy.feature.match
 
 import androidx.compose.ui.graphics.Color
 import app.criczy.core.model.MatchState
-import app.criczy.ui.components.CricketGround
+import app.criczy.ui.components.BallGround
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -126,7 +126,6 @@ private fun OverSummaryRow(detail: MatchDetail, over: Over) {
 private fun BallRow(detail: MatchDetail, ball: Ball, isNewest: Boolean) {
     val comments = ball.commentary.filterNot { it.isEndOfOver }
     val facts = listOfNotNull(ball.length, ball.line, ball.shot, ball.footwork, ball.connection, ball.fieldingPosition, ball.bowlingDetail, ball.dismissalType)
-    val shot = remember(ball) { WagonWheel.point(ball) }
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 9.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(44.dp)) {
             Text("${ball.overNumber - 1}.${ball.ballNumber}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -143,27 +142,9 @@ private fun BallRow(detail: MatchDetail, ball: Ball, isNewest: Boolean) {
                 comments.forEach { Text(it.text, style = MaterialTheme.typography.bodyMedium) }
             }
             // Every delivery gets its own ground showing only that ball, dot balls included.
-            // The newest one is larger and plays its shot; older ones are drawn where they landed.
+            // The newest one is larger and plays out; older ones are drawn as they finished.
             Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(contentAlignment = Alignment.BottomCenter) {
-                    CricketGround(
-                        emptyList(), shot, focusKey = ball,
-                        Modifier.size(if (isNewest) 196.dp else 140.dp),
-                        showZoneLabels = false, animate = isNewest, battingHand = ball.battingHand,
-                    )
-                    if (shot == null) {
-                        Text(
-                            when {
-                                ball.isWide -> "Wide"
-                                ball.batterRuns == 0 && !ball.isWicket -> "No shot"
-                                else -> "Not tracked"
-                            },
-                            style = MaterialTheme.typography.labelSmall, color = Color.White,
-                            modifier = Modifier.padding(bottom = if (isNewest) 30.dp else 22.dp)
-                                .clip(MaterialTheme.shapes.small).background(Color.Black.copy(alpha = 0.45f)).padding(horizontal = 8.dp, vertical = 2.dp),
-                        )
-                    }
-                }
+                BallGround(ball, Modifier.size(if (isNewest) 200.dp else 150.dp), animate = isNewest)
                 if (facts.isNotEmpty()) {
                     Spacer(Modifier.width(12.dp))
                     FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

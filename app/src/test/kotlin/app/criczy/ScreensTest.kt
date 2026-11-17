@@ -33,6 +33,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.test.assertCountEquals
 import app.criczy.core.model.Ball
 import app.criczy.core.model.BallOutcome
@@ -44,6 +46,10 @@ import app.criczy.feature.match.ScoreEvent
 import app.criczy.feature.match.ScoreEventOverlay
 import app.criczy.feature.match.ScoreEventType
 import app.criczy.feature.match.detectBallEvent
+import app.criczy.ui.components.ballStory
+import app.criczy.ui.components.shotEnd
+import app.criczy.core.analytics.WagonWheel
+import androidx.compose.ui.geometry.Offset
 import app.criczy.feature.onboarding.OnboardingScreen
 import app.criczy.feature.settings.PrivacyPolicyScreen
 import app.criczy.feature.settings.SettingsActions
@@ -157,9 +163,9 @@ class ScreensTest {
 
         compose.onNodeWithText("Commentary").performClick()
         awaitGrounds()
-        // Each delivery has its own ground showing just that ball, even when no shot was tracked.
-        assertTrue(compose.onAllNodes(hasContentDescription("Ground view of 0 scoring shots")).fetchSemanticsNodes().isNotEmpty(), "dot ball ground")
-        assertTrue(compose.onAllNodes(hasContentDescription("towards", substring = true)).fetchSemanticsNodes().isNotEmpty(), "tracked shot ground")
+        // Each delivery has its own ground telling what happened, even when nothing was scored.
+        compose.onNode(hasContentDescription("wicket, Caught · bowler", substring = true)).assertExists()
+        assertTrue(compose.onAllNodes(hasContentDescription("missed, played a drive")).fetchSemanticsNodes().isNotEmpty(), "dot ball says the batter missed")
         compose.screenshot("match-commentary-phone-dark")
 
         compose.onNodeWithText("Analysis").performScrollTo().performClick()
@@ -254,9 +260,71 @@ class ScreensTest {
         )
     }
 
-    /** Every ball row has a ground; dot balls and wides show an empty one. */
-    private fun awaitGrounds(atLeast: Int = 2) =
-        compose.waitUntil(10_000) { compose.onAllNodes(hasContentDescription("Ground view", substring = true)).fetchSemanticsNodes().size >= atLeast }
+    /** Every ball row has a ground; its description says what happened on that ball. */
+    private fun awaitGrounds() =
+        compose.waitUntil(10_000) { compose.onAllNodes(hasContentDescription("wicket, Caught", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+
+    @Test
+    fun `each ball is told in plain words from what the scorers recorded`() {
+        val balls = fixtureBalls()
+        val dot = balls.first { it.outcome == BallOutcome.DOT }
+        fun story(ball: Ball) = ballStory(ball).let { it.headline to it.showsShot }
+        assertEquals("FOUR" to true, story(balls.first { it.outcome == BallOutcome.FOUR }))
+        assertEquals("WICKET", ballStory(balls.first { it.isWicket }).headline)
+        assertEquals("WIDE" to false, story(balls.first { it.isWide }))
+        assertEquals("SINGLE" to true, story(balls.first { it.batterRuns == 1 && it.shotAngle != null }))
+        assertEquals("DOUBLE", ballStory(dot.copy(batterRuns = 2, teamRuns = 2)).headline)
+        assertEquals("TRIPLE", ballStory(dot.copy(batterRuns = 3, teamRuns = 3)).headline)
+        assertEquals("SIX", ballStory(dot.copy(batterRuns = 6, teamRuns = 6, isBoundary = true)).headline)
+        // Nothing scored: the ground stays empty and says what the batter did.
+        assertEquals("MISSED" to false, story(dot.copy(connection = "Missed")))
+        assertEquals("LEFT ALONE", ballStory(dot.copy(connection = "Left", shot = "Leave")).headline)
+        assertEquals("DEFENDED", ballStory(dot.copy(connection = null, shot = "Forward defensive")).headline)
+        assertEquals("HIT THE PAD", ballStory(dot.copy(connection = "Hit pad")).headline)
+        assertEquals("EDGED", ballStory(dot.copy(connection = "Outside edge")).headline)
+        assertTrue(balls.filter { it.batterRuns == 0 && !it.isWicket }.none { ballStory(it).showsShot }, "dot balls never draw an arrow")
+    }
+
+    @Test
+    fun `ball grounds for every kind of outcome`() {
+        val balls = fixtureBalls()
+        val dot = balls.first { it.outcome == BallOutcome.DOT }
+        val single = balls.first { it.batterRuns == 1 && it.shotAngle != null }
+        val shown = listOf(
+            balls.first { it.outcome == BallOutcome.FOUR && it.shotAngle != null },
+            single,
+            single.copy(batterRuns = 6, teamRuns = 6, isBoundary = true, inTheAir = true),
+            balls.first { it.isWicket },
+            dot.copy(connection = null, shot = "Forward defensive"),
+            balls.first { it.isWide },
+        )
+        compose.setCriczyContent {
+            androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxSize()) {
+                shown.forEach { app.criczy.ui.components.BallGround(it, Modifier.size(180.dp)) }
+            }
+        }
+        listOf("four", "single", "six", "wicket", "defended", "wide").forEach {
+            assertTrue(compose.onAllNodes(hasContentDescription(it, substring = true)).fetchSemanticsNodes().isNotEmpty(), it)
+        }
+        compose.screenshot("ball-grounds-phone-dark")
+    }
+
+    @Test
+    fun `shots point the way they would from behind the bowler`() {
+        val c = Offset(100f, 100f)
+        val batter = Offset(100f, 82f) // upper end of the pitch
+        fun end(angle: Int, hand: String) = WagonWheel.point(fixtureBalls().first().copy(shotAngle = angle, shotMagnitude = 180, battingHand = hand))!!
+            .let { shotEnd(it.x, it.y, 1f, batter, c, 90f)!! }
+        // Right-hander: off side on the left of the screen, leg side on the right, straight goes down.
+        assertTrue(end(199, "Right").x < c.x, "cover drive goes left")
+        assertTrue(end(0, "Right").x > c.x, "square leg is on the right")
+        val straight = end(270, "Right")
+        assertTrue(straight.y > c.y && kotlin.math.abs(straight.x - c.x) < 1f, "straight drive goes down past the bowler")
+        assertTrue(end(90, "Right").y < batter.y, "behind the stumps is above the batter")
+        // A left-hander's cover drive goes the other way.
+        assertTrue(end(341, "Left").x > c.x, "left-hander's cover is on the right")
+        assertEquals(90f, kotlin.math.hypot(end(45, "Right").x - c.x, end(45, "Right").y - c.y), 0.5f, "a boundary ends on the rope")
+    }
 
     private fun fixtureBalls() = runBlocking { FixtureServer.remote().commentaryPage(40644, inningsNumber = 2) }.overs.flatMap { it.balls }
 
