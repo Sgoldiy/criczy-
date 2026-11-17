@@ -1,5 +1,8 @@
 package app.criczy.ui.components
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -55,8 +58,8 @@ import app.criczy.core.data.LoadError
 import app.criczy.ui.theme.ScoreFont
 import app.criczy.ui.theme.cricketColors
 import app.criczy.ui.theme.parseTeamColor
-import coil3.compose.SubcomposeAsyncImage
-import coil3.compose.SubcomposeAsyncImageContent
+import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
 
 /**
  * Team or competition badge. Shows the remote logo when it loads and otherwise a disc in the
@@ -105,27 +108,25 @@ fun Badge(
         if (imageUrl.isNullOrBlank()) {
             fallback()
         } else {
-            SubcomposeAsyncImage(
+            // AsyncImage draws straight into the layout, which is much cheaper in long lists than
+            // the subcomposing variant. The initials show until the image has actually loaded.
+            var loaded by remember(imageUrl) { mutableStateOf(false) }
+            if (!loaded) fallback()
+            AsyncImage(
                 model = imageUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 alignment = if (photo) Alignment.TopCenter else Alignment.Center,
-                modifier = Modifier.fillMaxSize(),
-                loading = { fallback() },
-                error = { fallback() },
-                // Only the loaded photo is zoomed on the face; the initials stay centred.
-                success = {
-                    SubcomposeAsyncImageContent(
-                        modifier = if (photo) {
-                            Modifier.fillMaxSize().graphicsLayer {
-                                scaleX = PHOTO_ZOOM
-                                scaleY = PHOTO_ZOOM
-                                transformOrigin = TransformOrigin(0.5f, 0f)
-                            }
-                        } else {
-                            Modifier.fillMaxSize()
-                        },
-                    )
+                onState = { loaded = it is AsyncImagePainter.State.Success },
+                // Only the photo is zoomed on the face; the initials stay centred.
+                modifier = if (photo) {
+                    Modifier.fillMaxSize().graphicsLayer {
+                        scaleX = PHOTO_ZOOM
+                        scaleY = PHOTO_ZOOM
+                        transformOrigin = TransformOrigin(0.5f, 0f)
+                    }
+                } else {
+                    Modifier.fillMaxSize()
                 },
             )
         }

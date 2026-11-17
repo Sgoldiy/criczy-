@@ -65,8 +65,7 @@ private fun TeamScoreRow(match: Match, team: Team, emphasise: Boolean) {
             fontWeight = if (emphasise) FontWeight.Bold else FontWeight.Medium,
             color = if (emphasise) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).scrollingText(),
         )
         if (scores.isNotEmpty()) {
             Spacer(Modifier.width(8.dp))
@@ -119,8 +118,7 @@ fun MatchCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).scrollingText(),
                     )
                     if (isFavourite) {
                         Icon(Icons.Filled.Star, contentDescription = "Favourite", tint = cricketColors.accent, modifier = Modifier.padding(start = 6.dp).height(14.dp))
@@ -181,7 +179,7 @@ fun FeaturedMatchCard(match: Match, onClick: () -> Unit, modifier: Modifier = Mo
             Row(Modifier.heightIn(min = 24.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     match.competition.name, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.8f),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                    maxLines = 1, modifier = Modifier.weight(1f).scrollingText(),
                 )
                 if (match.state == MatchState.LIVE) LivePill() else Pill(match.day?.let { "DAY $it" } ?: match.format.label.uppercase(), container = Color.White.copy(alpha = 0.16f), content = Color.White)
             }
@@ -190,7 +188,7 @@ fun FeaturedMatchCard(match: Match, onClick: () -> Unit, modifier: Modifier = Mo
                 Row(Modifier.heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
                     Badge(team.shortName, team.logoUrl, team.colorHex, size = 36.dp)
                     Spacer(Modifier.width(10.dp))
-                    Text(team.shortName, fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = 26.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(team.shortName, fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = 26.sp, color = Color.White, maxLines = 1, modifier = Modifier.weight(1f).scrollingText())
                     if (scores.isNotEmpty()) {
                         Text(scores.joinToString(" & ") { it.scoreText }, fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = 30.sp, color = Color.White, maxLines = 1)
                         Spacer(Modifier.width(6.dp))

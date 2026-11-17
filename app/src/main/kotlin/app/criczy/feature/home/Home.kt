@@ -1,5 +1,6 @@
 package app.criczy.feature.home
 
+import app.criczy.ui.components.bottomBarPadding
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
@@ -232,7 +233,8 @@ fun HomeScreen(
     }
 }
 
-private val gridPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp)
+private val gridPadding: PaddingValues
+    @Composable get() = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottomBarPadding(24.dp))
 
 @Composable
 private fun LiveTab(

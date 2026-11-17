@@ -225,10 +225,19 @@ internal data class PlayerDto(
     @SerialName("IsManOfTheMatch") val isManOfTheMatch: Boolean = false,
     @SerialName("Order") val order: Int = 0,
     @SerialName("PlayerDetails") val details: List<PlayerDetailDto> = emptyList(),
+    @SerialName("LocalClub") val localClub: String = "",
+    @SerialName("BBLShirtNumber") val shirtNumber: String = "",
+    @SerialName("InstagramUrl") val instagramUrl: String = "",
+    @SerialName("TwitterUrl") val twitterUrl: String = "",
+    @SerialName("TiktokUrl") val tiktokUrl: String = "",
 )
 
 @Serializable
-internal data class PlayerDetailDto(@SerialName("ImageUrl") val imageUrl: String = "")
+internal data class PlayerDetailDto(
+    @SerialName("ImageUrl") val imageUrl: String = "",
+    @SerialName("GameType") val gameType: String = "",
+    @SerialName("DebutDate") val debutDate: String = "",
+)
 
 @Serializable
 internal data class PlayersDto(@SerialName("Players") val players: List<PlayerDto> = emptyList())

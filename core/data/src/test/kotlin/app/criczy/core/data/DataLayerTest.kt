@@ -47,6 +47,7 @@ class DataLayerTest {
     private lateinit var server: MockWebServer
     private lateinit var matches: MatchRepository
     private lateinit var catalog: CatalogRepository
+    private lateinit var players: PlayerRepository
 
     private fun fixture(name: String) = File("../network/src/test/resources/fixtures/$name").readText()
 
@@ -72,6 +73,7 @@ class DataLayerTest {
         )
         matches = MatchRepository(remote, db.seenPlayers())
         catalog = CatalogRepository(remote)
+        players = PlayerRepository(remote, db.seenPlayers())
     }
 
     @After
@@ -144,6 +146,36 @@ class DataLayerTest {
         val hit = search.search("amy jon").players.single()
         assertEquals("Amy Jones", hit.name)
         assertEquals("Melbourne Stars Women", hit.teamName)
+    }
+
+    @Test
+    fun `a player's part in a match covers batting, bowling and the opponent`() = runTest {
+        val detail = assertNotNull(matches.detail(40644))
+        val jonesId = detail.innings.first().batters.first().playerId
+        val form = assertNotNull(playerMatchForm(detail, jonesId))
+        assertEquals("Amy Jones", form.batting.single().name)
+        assertEquals(form.batting.single().runs, form.runs)
+        assertTrue(form.opponent != null && form.opponent?.id != detail.player(jonesId)?.teamId)
+        assertNull(playerMatchForm(detail, -1), "not in either side")
+
+        val bowler = detail.innings.first().bowlers.first()
+        val bowling = assertNotNull(playerMatchForm(detail, bowler.playerId))
+        assertEquals(bowler.wickets, bowling.wickets)
+        assertEquals(detail.innings.first().battingTeamId, bowling.opponent?.id)
+
+        val summary = FormSummary.of(listOf(form, form))
+        assertEquals(2, summary.matches)
+        assertEquals(form.runs * 2, summary.runs)
+    }
+
+    @Test
+    fun `recent form needs the player's team and reads its finished matches`() = runTest {
+        assertTrue(players.recentForm(409).isEmpty(), "team unknown until seen in a scorecard")
+        assertNotNull(matches.detail(40644))
+        val form = players.recentForm(409, limit = 3)
+        assertTrue(form.isNotEmpty())
+        assertTrue(form.size <= 3)
+        assertTrue(form.all { f -> f.batting.all { it.playerId == 409 } })
     }
 
     @Test

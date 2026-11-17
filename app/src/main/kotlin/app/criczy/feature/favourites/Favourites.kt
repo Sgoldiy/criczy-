@@ -1,5 +1,6 @@
 package app.criczy.feature.favourites
 
+import app.criczy.ui.components.bottomBarPadding
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -121,7 +122,7 @@ fun FavouritesScreen(
         Column(Modifier.padding(padding).fillMaxSize()) {
             when {
                 favourites == null -> Unit
-                favourites.isEmpty() -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                favourites.isEmpty() -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = bottomBarPadding())) {
                     MessageState(
                         Icons.Outlined.StarBorder, "Nothing followed yet",
                         "Tap the star on a team, series, match or player. Followed teams and series are highlighted on the home screen and can send match alerts.",
@@ -132,7 +133,7 @@ fun FavouritesScreen(
                         TeamSuggestions(dashboard.suggestions, onFollowTeam)
                     }
                 }
-                else -> LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+                else -> LazyColumn(contentPadding = PaddingValues(bottom = bottomBarPadding(24.dp))) {
                     // Everything followed, in play or next, before the lists.
                     if (dashboard.matches.isNotEmpty()) {
                         item(key = "your-matches") { SectionTitle("Your matches") }

@@ -22,7 +22,9 @@ import app.criczy.core.model.Official
 import app.criczy.core.model.Over
 import app.criczy.core.model.Partnership
 import app.criczy.core.model.Player
+import app.criczy.core.model.PlayerDebut
 import app.criczy.core.model.PlayerRole
+import app.criczy.core.model.SocialLink
 import app.criczy.core.model.StandingColumns
 import app.criczy.core.model.StandingRow
 import app.criczy.core.model.Standings
@@ -250,6 +252,17 @@ internal fun PlayerDto.toModel(): Player = Player(
     isSubstitute = isTwelfthMan,
     isPlayerOfTheMatch = isManOfTheMatch,
     order = order,
+    // The provider lists a record for many formats a player never played; only a debut date
+    // says they did.
+    debuts = details.mapNotNull { d -> parseBirthDate(d.debutDate)?.let { PlayerDebut(d.gameType.ifBlank { "Debut" }, it) } }
+        .distinctBy { it.format }.sortedBy { it.date },
+    localClub = localClub.orNullIfBlank(),
+    shirtNumber = shirtNumber.orNullIfBlank(),
+    socialLinks = listOfNotNull(
+        instagramUrl.orNullIfBlank()?.let { SocialLink("Instagram", it) },
+        twitterUrl.orNullIfBlank()?.let { SocialLink("X", it) },
+        tiktokUrl.orNullIfBlank()?.let { SocialLink("TikTok", it) },
+    ).filter { it.url.startsWith("https://") || it.url.startsWith("http://") },
 )
 
 private fun InningsDto.toModel(names: Map<Int, String>): Innings {

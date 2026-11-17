@@ -1,5 +1,6 @@
 package app.criczy.feature.settings
 
+import app.criczy.ui.components.bottomBarPadding
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Context
@@ -150,7 +151,7 @@ fun SettingsRoute(onTeams: () -> Unit, onPrivacy: () -> Unit) {
 fun SettingsScreen(prefs: UserPreferences, actions: SettingsActions) {
     Scaffold(topBar = { TopAppBar(title = { AppTitle("More") }) }) { padding ->
         Column(
-            Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp),
+            Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = bottomBarPadding(24.dp)),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Section("Browse") {

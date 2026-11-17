@@ -1,5 +1,6 @@
 package app.criczy.feature.match
 
+import app.criczy.ui.components.scrollingText
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -155,7 +156,7 @@ fun MatchScreen(
                             Text(
                                 listOf(data.match.name, data.match.competition.name).filter { it.isNotBlank() }.joinToString(" · "),
                                 style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                maxLines = 1, modifier = Modifier.scrollingText(),
                             )
                         }
                     }

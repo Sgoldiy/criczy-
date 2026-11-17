@@ -1,5 +1,6 @@
 package app.criczy.ui.components
 
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -10,7 +11,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
@@ -48,7 +48,17 @@ fun AppTitle(text: String, modifier: Modifier = Modifier, fontSize: TextUnit = 2
         }
     }
     Text(
-        styled, modifier, fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = fontSize, letterSpacing = 1.sp,
-        maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color.Unspecified,
+        styled, modifier.scrollingText(), fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = fontSize, letterSpacing = 1.sp,
+        maxLines = 1, color = Color.Unspecified,
     )
 }
+
+/**
+ * Lets one line of text that is too long scroll sideways, like a ticker, so a long name such as
+ * "SOUTH AFRICA v NEW ZEALAND" can be read in full. Text that fits stays still.
+ */
+fun Modifier.scrollingText(): Modifier = basicMarquee(
+    iterations = Int.MAX_VALUE,
+    initialDelayMillis = 1_500,
+    repeatDelayMillis = 2_000,
+)

@@ -1,5 +1,6 @@
 package app.criczy.feature.news
 
+import app.criczy.ui.components.listPaddingAboveBar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.size
@@ -22,7 +23,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -140,7 +140,7 @@ fun NewsScreen(state: Loadable<NewsFeed>, onOpenUrl: (String) -> Unit, onRefresh
                     val active = filter.takeIf { it in filters } ?: NewsFilter.ALL
                     val articles = feed.articles.filter { active.accepts(it, follows) }
                     LazyVerticalGrid(
-                        GridCells.Adaptive(330.dp), contentPadding = PaddingValues(16.dp),
+                        GridCells.Adaptive(330.dp), contentPadding = listPaddingAboveBar(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         item(span = { GridItemSpan(maxLineSpan) }, key = "filters") {

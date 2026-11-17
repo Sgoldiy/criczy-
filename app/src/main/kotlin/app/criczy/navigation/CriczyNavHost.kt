@@ -71,6 +71,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.ui.platform.LocalLayoutDirection
+import app.criczy.ui.components.LocalBottomBarInset
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -150,18 +155,18 @@ private fun FloatingBottomBar(current: String?, onSelect: (String) -> Unit) {
     val accent = cricketColors.accent
     val selectedIndex = destinations.indexOfFirst { it.route == current }.coerceAtLeast(0)
     Box(
-        Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 14.dp, end = 14.dp, bottom = 10.dp, top = 4.dp),
+        Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 18.dp, end = 18.dp, bottom = 8.dp, top = 4.dp),
     ) {
         Surface(
-            shape = RoundedCornerShape(28.dp),
+            shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
             shadowElevation = 10.dp,
-            modifier = Modifier.fillMaxWidth().height(68.dp),
+            modifier = Modifier.fillMaxWidth().height(58.dp),
         ) {
             BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 6.dp)) {
                 val slot = maxWidth / destinations.size
-                val pillWidth = 56.dp
+                val pillWidth = 52.dp
                 val offset by animateDpAsState(
                     targetValue = slot * selectedIndex + (slot - pillWidth) / 2,
                     animationSpec = spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow),
@@ -169,8 +174,8 @@ private fun FloatingBottomBar(current: String?, onSelect: (String) -> Unit) {
                 )
                 // The sliding pill, drawn once beneath the icons.
                 Box(
-                    Modifier.offset(x = offset, y = 10.dp).size(pillWidth, 32.dp)
-                        .background(accent.copy(alpha = 0.18f), RoundedCornerShape(16.dp)),
+                    Modifier.offset(x = offset, y = 6.dp).size(pillWidth, 28.dp)
+                        .background(accent.copy(alpha = 0.18f), RoundedCornerShape(14.dp)),
                 )
                 Row(Modifier.fillMaxSize()) {
                     destinations.forEach { item ->
@@ -184,14 +189,14 @@ private fun FloatingBottomBar(current: String?, onSelect: (String) -> Unit) {
                                 .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(item.route) }),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Box(Modifier.padding(top = 10.dp).height(32.dp), contentAlignment = Alignment.Center) {
+                            Box(Modifier.padding(top = 6.dp).height(28.dp), contentAlignment = Alignment.Center) {
                                 CompositionLocalProvider(LocalContentColor provides tint) { TopLevelIcon(item, selected) }
                             }
                             Text(
                                 item.label, color = tint, maxLines = 1,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                modifier = Modifier.padding(top = 3.dp),
+                                modifier = Modifier.padding(top = 1.dp),
                             )
                         }
                     }
@@ -254,7 +259,21 @@ fun CriczyNavHost(navController: NavHostController = rememberNavController()) {
                 }
             },
         ) { padding ->
-            Row(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
+            // On phones the screen scrolls on behind the floating bar instead of stopping above a
+            // plain strip; top-level screens add LocalBottomBarInset at the end of their lists.
+            val floatingBar = showBars && !useRail
+            val layoutDirection = LocalLayoutDirection.current
+            val bodyPadding = if (floatingBar) {
+                PaddingValues(
+                    start = padding.calculateStartPadding(layoutDirection),
+                    top = padding.calculateTopPadding(),
+                    end = padding.calculateEndPadding(layoutDirection),
+                )
+            } else {
+                padding
+            }
+            val barInset = if (floatingBar) padding.calculateBottomPadding() else 0.dp
+            Row(Modifier.fillMaxSize().padding(bodyPadding).consumeWindowInsets(padding)) {
                 AnimatedVisibility(
                     visible = showBars && useRail,
                     enter = expandHorizontally(tween(PUSH_MS)) + fadeIn(tween(PUSH_MS)),
@@ -272,6 +291,7 @@ fun CriczyNavHost(navController: NavHostController = rememberNavController()) {
                     }
                 }
                 Box(Modifier.weight(1f)) {
+                  CompositionLocalProvider(LocalBottomBarInset provides barInset) {
                     NavHost(
                         navController, startDestination = Routes.HOME,
                         enterTransition = { enter(forward = true) },
@@ -300,9 +320,10 @@ fun CriczyNavHost(navController: NavHostController = rememberNavController()) {
                             TeamRoute(it.arguments!!.getInt("teamId"), onBack, onMatch)
                         }
                         composable(Routes.PLAYER, arguments = listOf(navArgument("playerId") { type = NavType.IntType })) {
-                            PlayerRoute(it.arguments!!.getInt("playerId"), onBack)
+                            PlayerRoute(it.arguments!!.getInt("playerId"), onBack, onMatch, onUrl)
                         }
                     }
+                  }
                 }
             }
         }

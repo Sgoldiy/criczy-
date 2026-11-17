@@ -28,6 +28,11 @@ data class Player(
     val isSubstitute: Boolean = false,
     val isPlayerOfTheMatch: Boolean = false,
     val order: Int = 0,
+    /** International and domestic debuts the provider has a date for, oldest first. */
+    val debuts: List<PlayerDebut> = emptyList(),
+    val localClub: String? = null,
+    val shirtNumber: String? = null,
+    val socialLinks: List<SocialLink> = emptyList(),
 ) {
     val battingStyle: String? get() = battingHand?.takeIf { it.isNotBlank() }?.let { "$it-hand bat" }
 
@@ -38,6 +43,10 @@ data class Player(
             return if (arm != null) "$arm-arm $type" else type
         }
 }
+
+data class PlayerDebut(val format: String, val date: LocalDate)
+
+data class SocialLink(val label: String, val url: String)
 
 data class BatterLine(
     val playerId: Int,

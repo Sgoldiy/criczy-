@@ -143,6 +143,25 @@ class PlayerRepository(
     suspend fun player(id: Int): Player? = remote.players(listOf(id)).firstOrNull()
 
     suspend fun teamNameFor(playerId: Int): String? = seenPlayers.byId(playerId)?.teamName
+
+    /**
+     * The player's last [limit] finished matches for the team they were last seen playing for,
+     * newest first. Empty when the app has not seen them in a scorecard, so their team is unknown.
+     * A scorecard that fails to load is skipped rather than failing the whole list.
+     */
+    suspend fun recentForm(playerId: Int, limit: Int = 5): List<PlayerMatchForm> {
+        val teamId = seenPlayers.byId(playerId)?.teamId ?: return emptyList()
+        val finished = remote.matchBoard(upcoming = 1, live = 1, completed = 15, teamId = teamId).completed
+            .filter { it.state == MatchState.COMPLETED }
+            .sortedByDescending { it.end ?: it.start }
+            .take(limit + 3)
+        val details = coroutineScope {
+            finished.map { match ->
+                async { try { remote.matchDetail(match.id) } catch (_: CricketApiException) { null } }
+            }.awaitAll()
+        }
+        return details.mapNotNull { detail -> detail?.let { playerMatchForm(it, playerId) } }.take(limit)
+    }
 }
 
 class NewsRepository(private val remote: CricketRemoteDataSource) {

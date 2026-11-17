@@ -148,7 +148,7 @@ internal fun SummaryTab(
         }
         if (current != null && match.state != MatchState.COMPLETED) {
             item { RatePanel(detail, current) }
-            item { AtTheCreasePanel(current, actions.onPlayer) }
+            item { AtTheCreasePanel(current, actions.onPlayer) { detail.player(it)?.imageUrl } }
         }
         if (match.state == MatchState.COMPLETED) {
             item { ResultPanel(detail, actions.onPlayer) }
@@ -271,7 +271,7 @@ private fun RatePanel(detail: MatchDetail, current: Innings) {
 }
 
 @Composable
-private fun AtTheCreasePanel(innings: Innings, onPlayer: (Int) -> Unit) {
+private fun AtTheCreasePanel(innings: Innings, onPlayer: (Int) -> Unit, photoOf: (Int) -> String?) {
     val batters = innings.batters.filter { it.isAtCrease }
     val bowler = innings.bowlers.firstOrNull { it.isBowlingNow } ?: innings.bowlers.lastOrNull()
     if (batters.isEmpty() && bowler == null) return
@@ -279,7 +279,7 @@ private fun AtTheCreasePanel(innings: Innings, onPlayer: (Int) -> Unit) {
         Column {
             if (batters.isNotEmpty()) {
                 BattingHeaderRow("At the crease")
-                batters.forEach { BatterRow(it, onPlayer, showDismissal = false) }
+                batters.forEach { BatterRow(it, onPlayer, showDismissal = false, photoUrl = photoOf(it.playerId)) }
                 innings.currentPartnership?.takeIf { it.isCurrent }?.let {
                     Text(
                         "Partnership ${it.runs} (${it.balls} balls) · rate ${Formatters.rate(it.runRate)}",
@@ -291,7 +291,7 @@ private fun AtTheCreasePanel(innings: Innings, onPlayer: (Int) -> Unit) {
             if (bowler != null) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 BowlingHeaderRow("Bowling")
-                BowlerRow(bowler, onPlayer)
+                BowlerRow(bowler, onPlayer, photoOf(bowler.playerId))
             }
             innings.fallOfWickets.lastOrNull()?.let {
                 val out = innings.batted.firstOrNull { b -> b.playerId == it.playerId }
@@ -415,6 +415,9 @@ private fun NumberCell(text: String, wide: Boolean = false, bold: Boolean = fals
     )
 }
 
+/** Size of the small headshot at the start of each batting and bowling row. */
+private val SCORECARD_PHOTO = 28.dp
+
 @Composable
 private fun BattingHeaderRow(title: String) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -424,7 +427,7 @@ private fun BattingHeaderRow(title: String) {
 }
 
 @Composable
-private fun BatterRow(batter: BatterLine, onPlayer: (Int) -> Unit, showDismissal: Boolean = true) {
+private fun BatterRow(batter: BatterLine, onPlayer: (Int) -> Unit, showDismissal: Boolean = true, photoUrl: String? = null) {
     val spoken = "${batter.name}, ${batter.runs} runs from ${batter.balls} balls, ${batter.fours} fours, ${batter.sixes} sixes" +
         (if (batter.isOut) ", ${batter.dismissal ?: "out"}" else ", not out")
     Row(
@@ -432,6 +435,8 @@ private fun BatterRow(batter: BatterLine, onPlayer: (Int) -> Unit, showDismissal
             .semantics(mergeDescendants = true) { contentDescription = spoken }.padding(horizontal = 14.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        PlayerPhoto(batter.name, photoUrl, size = SCORECARD_PHOTO)
+        Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(batter.name, style = MaterialTheme.typography.bodyMedium, fontWeight = if (batter.isAtCrease) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
@@ -467,13 +472,15 @@ private fun BowlingHeaderRow(title: String) {
 }
 
 @Composable
-private fun BowlerRow(bowler: BowlerLine, onPlayer: (Int) -> Unit) {
+private fun BowlerRow(bowler: BowlerLine, onPlayer: (Int) -> Unit, photoUrl: String? = null) {
     val spoken = "${bowler.name}, ${bowler.wickets} wickets for ${bowler.runs} runs from ${bowler.overs} overs"
     Row(
         Modifier.fillMaxWidth().clickable(onClickLabel = "Open player") { onPlayer(bowler.playerId) }
             .semantics(mergeDescendants = true) { contentDescription = spoken }.padding(horizontal = 14.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        PlayerPhoto(bowler.name, photoUrl, size = SCORECARD_PHOTO)
+        Spacer(Modifier.width(10.dp))
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Text(bowler.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
             bowlingHaul(bowler.wickets)?.let {
@@ -512,7 +519,7 @@ internal fun ScorecardTab(detail: MatchDetail, onPlayer: (Int) -> Unit) {
                 Panel {
                     Column(Modifier.padding(bottom = 8.dp)) {
                         BattingHeaderRow("Batting")
-                        innings.batted.forEach { BatterRow(it, onPlayer) }
+                        innings.batted.forEach { BatterRow(it, onPlayer, photoUrl = detail.player(it.playerId)?.imageUrl) }
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(vertical = 4.dp))
                         val e = innings.extras
                         Row(Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
@@ -538,7 +545,7 @@ internal fun ScorecardTab(detail: MatchDetail, onPlayer: (Int) -> Unit) {
                     Panel {
                         Column(Modifier.padding(bottom = 8.dp)) {
                             BowlingHeaderRow("Bowling")
-                            innings.bowlers.forEach { BowlerRow(it, onPlayer) }
+                            innings.bowlers.forEach { BowlerRow(it, onPlayer, detail.player(it.playerId)?.imageUrl) }
                         }
                     }
                 }

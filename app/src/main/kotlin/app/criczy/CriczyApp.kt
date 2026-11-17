@@ -7,8 +7,11 @@ import app.criczy.notifications.Notifier
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
+import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
+import okio.Path.Companion.toOkioPath
 
 open class CriczyApp : Application(), SingletonImageLoader.Factory {
 
@@ -26,10 +29,22 @@ open class CriczyApp : Application(), SingletonImageLoader.Factory {
 
     protected open fun startBackgroundWork() = MatchAlertWorker.schedule(this)
 
-    // Images share the app's HTTP client, so logos and headshots also use the offline cache.
+    // Images use their own HTTP client and caches: a quarter of the app's memory for decoded
+    // images, and a disk cache that keeps logos and headshots between launches and offline.
     override fun newImageLoader(context: PlatformContext): ImageLoader =
         ImageLoader.Builder(context)
-            .components { add(OkHttpNetworkFetcherFactory(callFactory = { container.httpClient })) }
-            .crossfade(true)
+            .components { add(OkHttpNetworkFetcherFactory(callFactory = { container.imageHttpClient })) }
+            .memoryCache { MemoryCache.Builder().maxSizePercent(context, 0.25).build() }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(cacheDir.resolve("images").toOkioPath())
+                    .maxSizeBytes(IMAGE_DISK_CACHE_BYTES)
+                    .build()
+            }
+            .crossfade(150)
             .build()
+
+    private companion object {
+        const val IMAGE_DISK_CACHE_BYTES = 100L * 1024 * 1024
+    }
 }
