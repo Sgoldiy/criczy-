@@ -7,6 +7,7 @@ import com.criczy.app.core.data.CommunityProfile
 import com.criczy.app.core.data.CommunityUser
 import com.criczy.app.core.data.Communities
 import com.criczy.app.core.data.DailyPostLimitException
+import com.criczy.app.core.data.MatchPoll
 import com.criczy.app.core.data.PostDraft
 import com.criczy.app.core.data.PostKind
 import com.criczy.app.core.data.UsernameTakenException
@@ -59,7 +60,7 @@ class FirestoreCommunityBackend(context: Context) : CommunityBackend {
     override suspend fun currentUser(): CommunityUser {
         val uid = uid()
         val doc = user(uid).get().await()
-        return CommunityUser(uid, doc.getString("username"), doc.getTimestamp("lastPostAt")?.toDate()?.time)
+        return CommunityUser(uid, doc.getString("username"), doc.getTimestamp("lastPostAt")?.toDate()?.time, doc.getTimestamp("lastMatchPostAt")?.toDate()?.time)
     }
 
     override suspend fun claimUsername(username: String): CommunityUser {
@@ -88,7 +89,7 @@ class FirestoreCommunityBackend(context: Context) : CommunityBackend {
             .get().await()
             .documents.mapNotNull { it.toPost(community) }
 
-    override suspend fun publish(draft: PostDraft, profile: CommunityProfile): CommunityPost {
+    override suspend fun publish(draft: PostDraft, profile: CommunityProfile, matchPost: Boolean): CommunityPost {
         val uid = uid()
         val now = System.currentTimeMillis()
         val expires = now + Communities.LIFETIME_MS
@@ -104,10 +105,12 @@ class FirestoreCommunityBackend(context: Context) : CommunityBackend {
             put("reports", 0)
             put("createdAt", FieldValue.serverTimestamp())
             put("expireAt", Timestamp(Date(expires)))
+            if (matchPost) put("matchId", requireNotNull(draft.matchId))
         }
+        val allowance = if (matchPost) "lastMatchPostAt" else "lastPostAt"
         try {
             db.batch()
-                .set(user(uid), mapOf("lastPostAt" to FieldValue.serverTimestamp()), SetOptions.merge())
+                .set(user(uid), mapOf(allowance to FieldValue.serverTimestamp()), SetOptions.merge())
                 .set(ref, data)
                 .commit().await()
         } catch (e: FirebaseFirestoreException) {
@@ -119,6 +122,32 @@ class FirestoreCommunityBackend(context: Context) : CommunityBackend {
             ref.id, draft.community, uid, profile.username, draft.text, draft.kind, draft.options,
             List(voteSlots) { 0 }, 0, now, expires,
         )
+    }
+
+    override suspend fun ensureMatchPoll(poll: MatchPoll): CommunityPost? {
+        uid()
+        val ref = posts(poll.community).document(poll.id)
+        val expires = System.currentTimeMillis() + Communities.LIFETIME_MS
+        db.runTransaction { tx ->
+            if (!tx.get(ref).exists()) {
+                tx.set(
+                    ref,
+                    buildMap {
+                        put("uid", Communities.SYSTEM_UID)
+                        put("username", Communities.SYSTEM_NAME)
+                        put("text", poll.question)
+                        put("kind", "poll")
+                        put("options", poll.options)
+                        (0 until 4).forEach { put("c$it", 0) }
+                        put("reports", 0)
+                        put("createdAt", FieldValue.serverTimestamp())
+                        put("expireAt", Timestamp(Date(expires)))
+                        put("matchId", poll.matchId)
+                    },
+                )
+            }
+        }.await()
+        return ref.get().await().toPost(poll.community)
     }
 
     override suspend fun vote(post: CommunityPost, choice: Int) {

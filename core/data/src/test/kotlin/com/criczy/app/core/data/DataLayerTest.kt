@@ -202,6 +202,16 @@ class DataLayerTest {
     }
 
     @Test
+    fun `player of the match poll offers the top scorers and wicket-takers from a real scorecard`() = runTest {
+        val detail = assertNotNull(matches.detail(40644))
+        val poll = assertNotNull(MatchPolls.playerOfTheMatch(detail.match.home.id, detail))
+        assertTrue(poll.options.size in 2..4)
+        assertTrue(poll.options.all { it.length <= Communities.MAX_OPTION })
+        assertTrue(poll.options.any { it.endsWith(" runs") })
+        assertEquals("match-40644-pom-team-${detail.match.home.id}", poll.id)
+    }
+
+    @Test
     fun `favourites toggle and are observable`() = runTest {
         val repo = FavouritesRepository(db.favourites()) { 1L }
         val team = Team(11, "Pakistan Men", "PAK", null, "#006600")

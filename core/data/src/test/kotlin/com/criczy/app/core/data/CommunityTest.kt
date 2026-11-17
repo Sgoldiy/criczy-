@@ -42,16 +42,33 @@ class FakeCommunityBackend(private val clock: () -> Long) : CommunityBackend {
         return posts.filter { it.community == community && it.createdAt > after }.sortedByDescending { it.createdAt }.take(limit)
     }
 
-    override suspend fun publish(draft: PostDraft, profile: CommunityProfile): CommunityPost {
+    var lastMatchPostAt: Long? = null
+    val polls = mutableListOf<MatchPoll>()
+
+    override suspend fun publish(draft: PostDraft, profile: CommunityProfile, matchPost: Boolean): CommunityPost {
         val now = clock()
-        lastPostAt?.let { if (now < it + Communities.LIFETIME_MS) throw DailyPostLimitException(it + Communities.LIFETIME_MS) }
-        lastPostAt = now
+        if (matchPost) {
+            requireNotNull(draft.matchId)
+            lastMatchPostAt?.let { if (now < it + Communities.MATCH_POST_GAP_MS) throw DailyPostLimitException(null) }
+            lastMatchPostAt = now
+        } else {
+            lastPostAt?.let { if (now < it + Communities.LIFETIME_MS) throw DailyPostLimitException(it + Communities.LIFETIME_MS) }
+            lastPostAt = now
+        }
         val post = CommunityPost(
             "p${posts.size + 1}", draft.community, uid, profile.username, draft.text, draft.kind, draft.options,
             List(if (draft.kind == PostKind.POLL) draft.options.size else 2) { 0 }, 0, now, now + Communities.LIFETIME_MS,
         )
         posts += post
         return post
+    }
+
+    override suspend fun ensureMatchPoll(poll: MatchPoll): CommunityPost {
+        polls += poll
+        return posts.firstOrNull { it.id == poll.id } ?: CommunityPost(
+            poll.id, poll.community, Communities.SYSTEM_UID, Communities.SYSTEM_NAME, poll.question, PostKind.POLL, poll.options,
+            List(poll.options.size) { 0 }, 0, clock(), clock() + Communities.LIFETIME_MS,
+        ).also { posts += it }
     }
 
     override suspend fun vote(post: CommunityPost, choice: Int) {
@@ -204,6 +221,58 @@ class CommunityTest {
         assertTrue(ContentFilter.isClean("Scunthorpe and Shitij"))
         assertEquals(2, Communities.teamId("team-2"))
         assertNull(Communities.teamId(Communities.ALL))
+    }
+
+    @Test
+    fun `one extra post during a live match, at most every four hours`() = runTest {
+        repo.claimUsername("fan1")
+        repo.publish(PostDraft(Communities.team(6), "Daily", PostKind.OPINION))
+        assertFailsWith<DailyPostLimitException> { repo.publish(PostDraft(Communities.team(6), "No match", PostKind.OPINION)) }
+        repo.publish(PostDraft(Communities.team(6), "What a catch!", PostKind.OPINION, matchId = 41015))
+        assertEquals(2, backend.posts.size)
+        assertEquals(now, repo.profile.first()?.lastMatchPostAt)
+        now += 60 * 60_000
+        assertFailsWith<DailyPostLimitException> { repo.publish(PostDraft(Communities.team(6), "Again", PostKind.OPINION, matchId = 41015)) }
+        now += 3 * 60 * 60_000
+        repo.publish(PostDraft(Communities.team(6), "Four hours later", PostKind.OPINION, matchId = 41015))
+        assertEquals(3, backend.posts.size)
+    }
+
+    @Test
+    fun `match polls are opened once and then served from this phone`() = runTest {
+        repo.claimUsername("fan1")
+        val poll = MatchPoll("match-1-win-team-6", Communities.team(6), 1, "Who wins? IND v AUS", listOf("India", "Australia"))
+        repo.ensureMatchPolls(listOf(poll))
+        repo.ensureMatchPolls(listOf(poll))
+        assertEquals(1, backend.polls.size)
+        val shown = repo.feed(Communities.team(6)).first().single()
+        assertTrue(shown.isSystem)
+        assertEquals(listOf("India", "Australia"), shown.options)
+    }
+
+    @Test
+    fun `match poll builder picks matches around now and standouts from the scorecard`() {
+        val t = java.time.Instant.parse("2026-11-18T10:00:00Z")
+        val ind = Team(6, "India Men", "IND", null, null)
+        val aus = Team(2, "Australia Men", "AUS", null, null)
+        val comp = com.criczy.app.core.model.Competition(1, "Border-Gavaskar Trophy", null)
+        fun match(id: Int, state: com.criczy.app.core.model.MatchState, start: java.time.Instant, format: com.criczy.app.core.model.MatchFormat = com.criczy.app.core.model.MatchFormat.ODI) =
+            com.criczy.app.core.model.Match(id, "", comp, ind, aus, null, start, start.plusSeconds(8 * 3600), state, format, format.label, emptyList(), null)
+        val live = match(1, com.criczy.app.core.model.MatchState.LIVE, t.minusSeconds(3600), com.criczy.app.core.model.MatchFormat.TEST)
+        val soon = match(2, com.criczy.app.core.model.MatchState.UPCOMING, t.plusSeconds(5 * 3600))
+        val later = match(3, com.criczy.app.core.model.MatchState.UPCOMING, t.plusSeconds(3 * 86400))
+        val done = match(4, com.criczy.app.core.model.MatchState.COMPLETED, t.minusSeconds(12 * 3600))
+        val old = match(5, com.criczy.app.core.model.MatchState.COMPLETED, t.minusSeconds(5 * 86400))
+        val all = listOf(live, soon, later, done, old)
+
+        assertEquals(live, MatchPolls.featured(6, all, t))
+        assertEquals(soon, MatchPolls.featured(6, listOf(soon, later), t))
+        val polls = MatchPolls.winPolls(6, all, t)
+        assertEquals(listOf("match-1-win-team-6", "match-2-win-team-6"), polls.map { it.id })
+        assertEquals(listOf("India Men", "Australia Men", "Draw"), polls[0].options)
+        assertEquals(listOf("India Men", "Australia Men"), polls[1].options)
+        assertEquals(listOf(done), MatchPolls.recentlyFinished(6, all, t))
+        assertTrue(MatchPolls.winPolls(99, all, t).isEmpty())
     }
 
     @Test

@@ -37,16 +37,24 @@ data class CommunityPost(
     val myVote: Int? = null,
 ) {
     val totalVotes: Int get() = counts.sum()
+    /** A match poll created by the app rather than by a member. */
+    val isSystem: Boolean get() = authorId == Communities.SYSTEM_UID
 }
 
-data class PostDraft(val community: String, val text: String, val kind: PostKind, val options: List<String> = emptyList())
+/** A poll the app opens in a team's feed around its matches; [id] is the same on every phone. */
+data class MatchPoll(val id: String, val community: String, val matchId: Int, val question: String, val options: List<String>)
+
+/** [matchId] marks a match post: the extra post allowed while the team's match is in play. */
+data class PostDraft(val community: String, val text: String, val kind: PostKind, val options: List<String> = emptyList(), val matchId: Int? = null)
 
 /** The member as the server knows them; [username] is null until one is chosen. */
-data class CommunityUser(val uid: String, val username: String?, val lastPostAt: Long?)
+data class CommunityUser(val uid: String, val username: String?, val lastPostAt: Long?, val lastMatchPostAt: Long? = null)
 
-data class CommunityProfile(val uid: String, val username: String, val lastPostAt: Long?) {
+data class CommunityProfile(val uid: String, val username: String, val lastPostAt: Long?, val lastMatchPostAt: Long? = null) {
     fun nextPostAt(): Long? = lastPostAt?.plus(Communities.LIFETIME_MS)
     fun canPost(now: Long): Boolean = nextPostAt()?.let { now >= it } ?: true
+    /** One extra post during a live match, at most once every [Communities.MATCH_POST_GAP_MS]. */
+    fun canMatchPost(now: Long): Boolean = lastMatchPostAt?.let { now >= it + Communities.MATCH_POST_GAP_MS } ?: true
 }
 
 class UsernameTakenException : Exception("That username is taken")
@@ -56,6 +64,9 @@ class CommunityRuleException(message: String) : Exception(message)
 object Communities {
     const val ALL = "all"
     const val LIFETIME_MS = 24L * 60 * 60 * 1000
+    const val MATCH_POST_GAP_MS = 4L * 60 * 60 * 1000
+    const val SYSTEM_UID = "criczy"
+    const val SYSTEM_NAME = "Criczy"
     const val MAX_TEXT = 280
     const val MAX_OPTION = 40
     const val MAX_TEAMS = 5
@@ -120,8 +131,10 @@ interface CommunityBackend {
     suspend fun claimUsername(username: String): CommunityUser
     /** Posts created after [after] (epoch millis), newest first. */
     suspend fun posts(community: String, after: Long, limit: Int): List<CommunityPost>
-    /** Throws [DailyPostLimitException]. */
-    suspend fun publish(draft: PostDraft, profile: CommunityProfile): CommunityPost
+    /** Throws [DailyPostLimitException]. With [matchPost], uses the live-match allowance instead of the daily one. */
+    suspend fun publish(draft: PostDraft, profile: CommunityProfile, matchPost: Boolean = false): CommunityPost
+    /** Creates the poll unless a phone already has; returns it either way (null if unavailable). */
+    suspend fun ensureMatchPoll(poll: MatchPoll): CommunityPost?
     suspend fun vote(post: CommunityPost, choice: Int)
     suspend fun report(post: CommunityPost)
     suspend fun delete(post: CommunityPost)
@@ -133,7 +146,8 @@ object UnavailableCommunityBackend : CommunityBackend {
     override suspend fun currentUser() = unavailable()
     override suspend fun claimUsername(username: String) = unavailable()
     override suspend fun posts(community: String, after: Long, limit: Int) = unavailable()
-    override suspend fun publish(draft: PostDraft, profile: CommunityProfile) = unavailable()
+    override suspend fun publish(draft: PostDraft, profile: CommunityProfile, matchPost: Boolean) = unavailable()
+    override suspend fun ensureMatchPoll(poll: MatchPoll) = unavailable()
     override suspend fun vote(post: CommunityPost, choice: Int) = unavailable()
     override suspend fun report(post: CommunityPost) = unavailable()
     override suspend fun delete(post: CommunityPost) = unavailable()
@@ -164,7 +178,7 @@ data class CommunityVoteEntity(@PrimaryKey val postId: String, val choice: Int, 
 data class BlockedAuthorEntity(@PrimaryKey val authorId: String, val author: String, val blockedAt: Long)
 
 @Entity(tableName = "community_profile")
-data class CommunityProfileEntity(@PrimaryKey val slot: Int = 0, val uid: String, val username: String, val lastPostAt: Long?)
+data class CommunityProfileEntity(@PrimaryKey val slot: Int = 0, val uid: String, val username: String, val lastPostAt: Long?, val lastMatchPostAt: Long? = null)
 
 @Dao
 interface CommunityDao {
@@ -221,7 +235,7 @@ class CommunityRepository(
 ) {
     val isAvailable: Boolean get() = backend.isAvailable
 
-    val profile: Flow<CommunityProfile?> = dao.observeProfile().map { it?.let { p -> CommunityProfile(p.uid, p.username, p.lastPostAt) } }
+    val profile: Flow<CommunityProfile?> = dao.observeProfile().map { it?.toModel() }
 
     /** The feed as stored on this phone: unexpired, not blocked, not hidden by reports. */
     fun feed(community: String): Flow<List<CommunityPost>> =
@@ -236,11 +250,12 @@ class CommunityRepository(
      * or null if a username still has to be chosen.
      */
     suspend fun connect(): CommunityProfile? {
-        dao.profile()?.let { return CommunityProfile(it.uid, it.username, it.lastPostAt) }
+        dao.profile()?.let { return it.toModel() }
         val user = backend.currentUser()
         val name = user.username ?: return null
-        dao.saveProfile(CommunityProfileEntity(uid = user.uid, username = name, lastPostAt = user.lastPostAt))
-        return CommunityProfile(user.uid, name, user.lastPostAt)
+        val entity = CommunityProfileEntity(uid = user.uid, username = name, lastPostAt = user.lastPostAt, lastMatchPostAt = user.lastMatchPostAt)
+        dao.saveProfile(entity)
+        return entity.toModel()
     }
 
     suspend fun claimUsername(username: String): CommunityProfile {
@@ -266,18 +281,37 @@ class CommunityRepository(
     }
 
     suspend fun publish(draft: PostDraft): CommunityPost {
-        val profile = dao.profile()?.let { CommunityProfile(it.uid, it.username, it.lastPostAt) }
-            ?: throw CommunityRuleException("Choose a username first")
-        if (!profile.canPost(now())) throw DailyPostLimitException(profile.nextPostAt())
+        val profile = dao.profile()?.toModel() ?: throw CommunityRuleException("Choose a username first")
+        val time = now()
+        val matchPost = !profile.canPost(time) && draft.matchId != null && profile.canMatchPost(time)
+        if (!profile.canPost(time) && !matchPost) throw DailyPostLimitException(profile.nextPostAt())
         Communities.draftProblem(draft)?.let { throw CommunityRuleException(it) }
         val clean = draft.copy(
             text = draft.text.trim(),
             options = if (draft.kind == PostKind.POLL) draft.options.map { it.trim().replace('\n', ' ') }.filter { it.isNotEmpty() } else emptyList(),
         )
-        val post = backend.publish(clean, profile)
+        val post = backend.publish(if (matchPost) clean else clean.copy(matchId = null), profile, matchPost)
         dao.upsertPosts(listOf(post.toEntity()))
-        dao.saveProfile(CommunityProfileEntity(uid = profile.uid, username = profile.username, lastPostAt = post.createdAt))
+        dao.saveProfile(
+            CommunityProfileEntity(
+                uid = profile.uid, username = profile.username,
+                lastPostAt = if (matchPost) profile.lastPostAt else post.createdAt,
+                lastMatchPostAt = if (matchPost) post.createdAt else profile.lastMatchPostAt,
+            ),
+        )
         return post
+    }
+
+    /**
+     * Opens the app's match polls in their feeds. Polls this phone already has cost nothing;
+     * others take one read, and a write only on the first phone to get there.
+     */
+    suspend fun ensureMatchPolls(polls: List<MatchPoll>) {
+        for (poll in polls) {
+            if (poll.id in attempted || dao.post(poll.id) != null) continue
+            backend.ensureMatchPoll(poll)?.takeIf { it.expiresAt > now() }?.let { dao.upsertPosts(listOf(it.toEntity())) }
+            attempted += poll.id
+        }
     }
 
     /** One vote per post; a second vote is ignored. */
@@ -290,6 +324,8 @@ class CommunityRepository(
             dao.upsertPosts(listOf(stored.copy(counts = counts.joinToString(","))))
         }
     }
+
+    suspend fun hasPost(id: String): Boolean = dao.post(id) != null
 
     /** Reports the post and hides it on this phone. */
     suspend fun report(post: CommunityPost) {
@@ -309,6 +345,10 @@ class CommunityRepository(
         dao.deleteExpiredPosts(time)
         dao.deleteExpiredVotes(time)
     }
+
+    private val attempted = HashSet<String>()
+
+    private fun CommunityProfileEntity.toModel() = CommunityProfile(uid, username, lastPostAt, lastMatchPostAt)
 
     private fun CommunityPostEntity.toModel(myVote: Int?) = CommunityPost(
         id, community, authorId, author, text,

@@ -5,6 +5,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -130,6 +132,36 @@ class CommunityScreensTest {
         compose.screenshot("favourites-community-unavailable-phone-dark")
         compose.onNodeWithText("Following").performClick()
         compose.onNodeWithText("India Men").assertIsDisplayed()
+    }
+
+    @Test
+    fun `team feed shows its live match, the app's match poll, and offers a match post after the daily one`() {
+        val live = kotlinx.coroutines.runBlocking { FixtureServer.remote().matchBoard() }.live.first { it.id == 41015 }
+        val team = CommunitySpace(Communities.team(live.home.id), live.home.name, live.home.shortName, live.home.logoUrl, live.home.colorHex)
+        val profile = CommunityProfile("me", "cover_drive", now - 2 * hour)
+        val poll = CommunityPost(
+            "match-41015-win-${team.id}", team.id, Communities.SYSTEM_UID, Communities.SYSTEM_NAME, "Who wins? ${live.title}", PostKind.POLL,
+            listOf(live.home.name, live.away.name, "Draw"), listOf(12, 30, 5), 0, now - hour, now + 23 * hour,
+        )
+        var draft: PostDraft? = null
+        var opened: Int? = null
+        compose.setCriczyContent {
+            Surface {
+                CommunityContent(
+                    CommunityUiState(phase = CommunityPhase.READY, profile = profile, spaces = listOf(ALL_FANS, team), selected = team.id, posts = listOf(poll), featured = live, now = now),
+                    CommunityActions(onPost = { draft = it }, onMatch = { opened = it }),
+                )
+            }
+        }
+        compose.onNodeWithText("Criczy · Match poll").assertIsDisplayed()
+        compose.onNodeWithText("Match post: one extra post during ${live.title}").assertIsDisplayed()
+        compose.screenshot("community-match-day-phone-dark")
+        compose.onNodeWithText("Post").performClick()
+        compose.onNodeWithText("Your take").performTextInput("Rashid is bowling beautifully")
+        compose.onNodeWithText("Post to ${team.shortName}").performClick()
+        assertEquals(41015, draft?.matchId)
+        compose.onAllNodesWithContentDescription(com.criczy.app.ui.components.matchDescription(live)).onFirst().performClick()
+        assertEquals(41015, opened)
     }
 
     @Test

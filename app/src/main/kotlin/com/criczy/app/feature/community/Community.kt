@@ -85,6 +85,14 @@ import com.criczy.app.core.data.CommunityRuleException
 import com.criczy.app.core.data.DailyPostLimitException
 import com.criczy.app.core.data.FavouriteType
 import com.criczy.app.core.data.PostDraft
+import com.criczy.app.core.data.MatchPolls
+import com.criczy.app.core.model.Match
+import com.criczy.app.core.model.MatchState
+import com.criczy.app.ui.components.MatchCard
+import com.criczy.app.ui.latestBoard
+import java.time.Instant
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import com.criczy.app.core.data.PostKind
 import com.criczy.app.core.data.UsernameTakenException
 import com.criczy.app.di.AppContainer
@@ -121,6 +129,8 @@ data class CommunityUiState(
     val message: String? = null,
     /** Bumped after a successful post so the composer closes and clears. */
     val posted: Int = 0,
+    /** The selected team's match in play, or starting within a day, shown above its feed. */
+    val featured: Match? = null,
     val now: Long = System.currentTimeMillis(),
 )
 
@@ -137,6 +147,7 @@ class CommunityActions(
     val onDelete: (CommunityPost) -> Unit = {},
     val onDismissMessage: () -> Unit = {},
     val onRetry: () -> Unit = {},
+    val onMatch: (Int) -> Unit = {},
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -152,12 +163,16 @@ class CommunityViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    private val board = container.matches.latestBoard()
+
     val state: StateFlow<CommunityUiState> = combine(
-        local, repo.profile, spaces, selected, selected.flatMapLatest { repo.feed(it) },
-    ) { base, profile, spaces, chosen, posts ->
-        val current = chosen.takeIf { id -> spaces.any { it.id == id } } ?: Communities.ALL
-        base.copy(profile = profile, spaces = spaces, selected = current, posts = posts, now = System.currentTimeMillis())
-    }.stateIn(viewModelScope, WhileUiVisible, local.value)
+        combine(local, repo.profile, spaces, selected, selected.flatMapLatest { repo.feed(it) }) { base, profile, spaces, chosen, posts ->
+            val current = chosen.takeIf { id -> spaces.any { it.id == id } } ?: Communities.ALL
+            base.copy(profile = profile, spaces = spaces, selected = current, posts = posts, now = System.currentTimeMillis())
+        },
+        board,
+    ) { s, b -> s.copy(featured = Communities.teamId(s.selected)?.let { MatchPolls.featured(it, b.all, Instant.now()) }) }
+        .stateIn(viewModelScope, WhileUiVisible, local.value)
 
     init { connect() }
 
@@ -205,6 +220,26 @@ class CommunityViewModel(private val container: AppContainer) : ViewModel() {
             local.update { it.copy(refreshing = false) }
         } catch (e: Exception) {
             local.update { it.copy(refreshing = false, message = "Could not load new posts.") }
+            return
+        }
+        openMatchPolls(community)
+    }
+
+    /** Opens "Who wins?" and "Player of the match?" polls for the team's matches; quiet on failure. */
+    private suspend fun openMatchPolls(community: String) {
+        val teamId = Communities.teamId(community) ?: return
+        try {
+            val now = Instant.now()
+            val matches = board.first().all
+            val polls = MatchPolls.winPolls(teamId, matches, now) +
+                MatchPolls.recentlyFinished(teamId, matches, now).take(2)
+                    .filter { !repo.hasPost("match-${it.id}-pom-$community") }
+                    .mapNotNull { m -> container.matches.detail(m.id)?.let { MatchPolls.playerOfTheMatch(teamId, it) } }
+            repo.ensureMatchPolls(polls)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Polls are extras; the feed works without them.
         }
     }
 
@@ -234,7 +269,7 @@ class CommunityViewModel(private val container: AppContainer) : ViewModel() {
 }
 
 @Composable
-fun CommunityRoute() {
+fun CommunityRoute(onMatch: (Int) -> Unit = {}) {
     val container = LocalAppContainer.current
     val vm: CommunityViewModel = viewModel { CommunityViewModel(container) }
     val state by vm.state.collectAsStateWithLifecycle()
@@ -243,7 +278,7 @@ fun CommunityRoute() {
         CommunityActions(
             onJoin = { vm.join(it) }, onSelect = vm::select, onRefresh = { vm.refresh() }, onPost = { vm.post(it) },
             onVote = { p, c -> vm.vote(p, c) }, onReport = { vm.report(it) }, onBlock = { vm.block(it) }, onDelete = { vm.delete(it) },
-            onDismissMessage = vm::dismissMessage, onRetry = vm::connect,
+            onDismissMessage = vm::dismissMessage, onRetry = vm::connect, onMatch = onMatch,
         ),
     )
 }
@@ -327,6 +362,11 @@ private fun CommunityFeed(state: CommunityUiState, actions: CommunityActions) {
     val space = state.spaces.firstOrNull { it.id == state.selected } ?: ALL_FANS
     LazyColumn(contentPadding = PaddingValues(bottom = bottomBarPadding(24.dp))) {
         item(key = "spaces") { SpaceChips(state, actions.onSelect) }
+        state.featured?.let { match ->
+            item(key = "featured-${match.id}") {
+                MatchCard(match, onClick = { actions.onMatch(match.id) }, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp), isFavourite = true)
+            }
+        }
         item(key = "composer") { Composer(state, space, actions) }
         state.message?.let { message ->
             item(key = "message") { Notice(message, actions.onDismissMessage) }
@@ -377,7 +417,10 @@ private fun Composer(state: CommunityUiState, space: CommunitySpace, actions: Co
     var kind by rememberSaveable(state.posted) { mutableStateOf(PostKind.OPINION) }
     var text by rememberSaveable(state.posted) { mutableStateOf("") }
     val options = remember(state.posted) { mutableStateListOf("", "") }
-    val canPost = profile.canPost(state.now)
+    val live = state.featured?.takeIf { it.state == MatchState.LIVE || it.state == MatchState.IN_PROGRESS }
+    // After the daily post, one extra post is allowed while the team's match is in play.
+    val matchPost = !profile.canPost(state.now) && live != null && profile.canMatchPost(state.now)
+    val canPost = profile.canPost(state.now) || matchPost
 
     Card(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).animateContentSize(),
@@ -390,7 +433,11 @@ private fun Composer(state: CommunityUiState, space: CommunitySpace, actions: Co
                 Column(Modifier.weight(1f)) {
                     Text("@${profile.username}", style = MaterialTheme.typography.titleSmall)
                     Text(
-                        if (canPost) "Your post for today goes to ${space.name}" else nextPostText(profile.nextPostAt(), state.now),
+                        when {
+                            matchPost -> "Match post: one extra post during ${live!!.title}"
+                            canPost -> "Your post for today goes to ${space.name}"
+                            else -> nextPostText(profile.nextPostAt(), state.now)
+                        },
                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -432,7 +479,7 @@ private fun Composer(state: CommunityUiState, space: CommunitySpace, actions: Co
                     }
                     if (options.size < 4) TextButton(onClick = { options.add("") }) { Icon(Icons.Outlined.Add, contentDescription = null); Spacer(Modifier.width(4.dp)); Text("Add option") }
                 }
-                val draft = PostDraft(space.id, text, kind, if (kind == PostKind.POLL) options.toList() else emptyList())
+                val draft = PostDraft(space.id, text, kind, if (kind == PostKind.POLL) options.toList() else emptyList(), matchId = live?.id)
                 val problem = if (text.isBlank()) null else Communities.draftProblem(draft)
                 problem?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium) }
                 Spacer(Modifier.height(8.dp))
@@ -471,11 +518,11 @@ private fun PostCard(post: CommunityPost, isMine: Boolean, now: Long, actions: C
     ) {
         Column(Modifier.padding(start = 14.dp, end = 4.dp, top = 10.dp, bottom = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Avatar(post.author, 28)
+                if (post.isSystem) Badge("CZ", null, "#FFB300", size = 28.dp) else Avatar(post.author, 28)
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "@${post.author}" + if (isMine) " · you" else "",
+                        if (post.isSystem) "Criczy · Match poll" else "@${post.author}" + if (isMine) " · you" else "",
                         style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     Text(
@@ -483,7 +530,7 @@ private fun PostCard(post: CommunityPost, isMine: Boolean, now: Long, actions: C
                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Box {
+                if (!post.isSystem) Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More for @${post.author}'s post") }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         if (isMine) {

@@ -30,11 +30,14 @@ service cloud.firestore {
         && validName(request.resource.data.username)
         && request.resource.data.createdAt == request.time
         && getAfter(doc('usernames/' + request.resource.data.username.lower())).data.uid == uid;
-      // Only lastPostAt may change, to now, and only 24 hours after the previous post.
-      allow update: if signedIn() && me() == uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastPostAt'])
-        && request.resource.data.lastPostAt == request.time
-        && (!('lastPostAt' in resource.data) || request.time > resource.data.lastPostAt + duration.value(24, 'h'));
+      // Posting stamps one allowance, to now: lastPostAt once every 24 hours, or
+      // lastMatchPostAt (an extra post during a live match) once every 4 hours.
+      function stamp(field, gapHours) {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly([field])
+          && request.resource.data[field] == request.time
+          && (!(field in resource.data) || request.time > resource.data[field] + duration.value(gapHours, 'h'));
+      }
+      allow update: if signedIn() && me() == uid && (stamp('lastPostAt', 24) || stamp('lastMatchPostAt', 4));
     }
 
     match /communities/{community}/posts/{postId} {
@@ -43,7 +46,7 @@ service cloud.firestore {
 
       function validPost() {
         return community.matches('^(all|team-[0-9]+)$')
-          && post().keys().hasOnly(['uid', 'username', 'text', 'kind', 'options', 'c0', 'c1', 'c2', 'c3', 'reports', 'createdAt', 'expireAt'])
+          && post().keys().hasOnly(['uid', 'username', 'text', 'kind', 'options', 'c0', 'c1', 'c2', 'c3', 'reports', 'createdAt', 'expireAt', 'matchId'])
           && post().uid == me()
           && post().username == author().username
           && post().text is string && post().text.size() > 0 && post().text.size() <= 280
@@ -52,8 +55,23 @@ service cloud.firestore {
           && post().c0 == 0 && post().c1 == 0 && post().c2 == 0 && post().c3 == 0 && post().reports == 0
           && post().createdAt == request.time
           && within24h(post().expireAt)
-          // Posted together with users/{uid}.lastPostAt, whose rule allows one post per 24 hours.
-          && getAfter(doc('users/' + me())).data.lastPostAt == request.time;
+          // Posted together with a stamp on users/{uid}, whose rule enforces the allowance.
+          && (getAfter(doc('users/' + me())).data.get('lastPostAt', null) == request.time
+              || (post().get('matchId', null) is int && getAfter(doc('users/' + me())).data.get('lastMatchPostAt', null) == request.time));
+      }
+
+      // Match polls ("Who wins?", "Player of the match?") are opened by the first phone to
+      // reach them, under a fixed id, as the app rather than as a member.
+      function validMatchPoll() {
+        return postId.matches('^match-[0-9]+-(win|pom)-' + community + '$')
+          && post().keys().hasOnly(['uid', 'username', 'text', 'kind', 'options', 'c0', 'c1', 'c2', 'c3', 'reports', 'createdAt', 'expireAt', 'matchId'])
+          && post().uid == 'criczy' && post().username == 'Criczy'
+          && post().kind == 'poll' && post().options is list && post().options.size() >= 2 && post().options.size() <= 4
+          && post().text is string && post().text.size() > 0 && post().text.size() <= 280
+          && post().c0 == 0 && post().c1 == 0 && post().c2 == 0 && post().c3 == 0 && post().reports == 0
+          && post().matchId is int
+          && post().createdAt == request.time
+          && within24h(post().expireAt);
       }
 
       function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
@@ -76,7 +94,7 @@ service cloud.firestore {
 
       allow get: if signedIn();
       allow list: if signedIn() && request.query.limit <= 100;
-      allow create: if signedIn() && validPost();
+      allow create: if signedIn() && (validPost() || validMatchPoll());
       allow update: if signedIn() && (validVote() || validReport());
       allow delete: if signedIn() && resource.data.uid == me();
 

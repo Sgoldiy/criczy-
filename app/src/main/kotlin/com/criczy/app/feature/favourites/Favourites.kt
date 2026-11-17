@@ -108,7 +108,7 @@ fun FavouritesRoute(onMatch: (Int) -> Unit, onTeam: (Int) -> Unit, onCompetition
     val vm: FavouritesViewModel = viewModel { FavouritesViewModel(container) }
     val state by vm.state.collectAsStateWithLifecycle()
     val dashboard by vm.dashboard.collectAsStateWithLifecycle()
-    FavouritesScreen(state, onMatch, onTeam, onCompetition, onPlayer, onBrowseTeams, vm::remove, dashboard, community = { CommunityRoute() }, onFollowTeam = vm::follow)
+    FavouritesScreen(state, onMatch, onTeam, onCompetition, onPlayer, onBrowseTeams, vm::remove, dashboard, community = { CommunityRoute(onMatch) }, onFollowTeam = vm::follow)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
