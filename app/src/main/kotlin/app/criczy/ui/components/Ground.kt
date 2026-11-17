@@ -448,8 +448,8 @@ internal fun deliveryOf(ball: Ball, c: Offset, r: Float): Delivery {
 
 /**
  * An over at a glance, as a broadcast shows it when the over ends: every shot of the over from
- * the batter's end, numbered in the order bowled, and a mark on the pitch where each delivery
- * landed. With [animate] the balls are drawn in turn.
+ * the batter's end, numbered in the order bowled. Where each ball pitched is on
+ * [OverPitchMap]. With [animate] the shots are drawn in turn.
  */
 @Composable
 fun OverGround(balls: List<Ball>, modifier: Modifier = Modifier, animate: Boolean = false, replayKey: Any? = null) {
@@ -501,14 +501,6 @@ fun OverGround(balls: List<Ball>, modifier: Modifier = Modifier, animate: Boolea
                     val shown = progress.value
                     drawCircle(look.surround, outer, c)
                     drawField(field, showSides = hands.size == 1)
-                    // Where each ball pitched.
-                    deliveries.forEachIndexed { i, d ->
-                        val bounce = d.bounce ?: return@forEachIndexed
-                        if (shown > i + 0.15f) {
-                            drawCircle(tones[i], 2.6.dp.toPx(), bounce)
-                            drawCircle(Color.White.copy(alpha = 0.9f), 2.6.dp.toPx(), bounce, style = Stroke(0.8.dp.toPx()))
-                        }
-                    }
                     // Each shot, growing from the bat in turn, numbered at its tip.
                     shots.forEachIndexed { i, s ->
                         val e = ends[i] ?: return@forEachIndexed

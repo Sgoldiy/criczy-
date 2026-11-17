@@ -44,6 +44,9 @@ import app.criczy.feature.match.LatestBall
 import app.criczy.feature.match.MatchActions
 import app.criczy.feature.match.OverReplayPanel
 import app.criczy.ui.components.replayMillis
+import app.criczy.ui.components.lineColumn
+import app.criczy.ui.components.lengthRow
+import app.criczy.ui.components.pitchPlaces
 import app.criczy.feature.match.ScoreEvent
 import app.criczy.feature.match.ScoreEventOverlay
 import app.criczy.feature.match.ScoreEventType
@@ -282,6 +285,23 @@ class ScreensTest {
         compose.onAllNodes(hasContentDescription(description, substring = true)).fetchSemanticsNodes().size
 
     @Test
+    fun `the pitch map puts every ball of an over in its own place`() {
+        // Every line and length the feed uses has a cell.
+        listOf("Wide", "Outside off", "Off stump", "Middle stump", "Leg stump", "Down leg", "Wide down leg").forEachIndexed { i, line -> assertEquals(i, lineColumn(line)) }
+        listOf("Full toss", "Yorker", "Half volley", "Length ball", "Back of a length", "Short", "Half tracker").forEachIndexed { i, length -> assertEquals(i, lengthRow(length)) }
+        assertEquals(0, lengthRow("Beamer"))
+
+        val over = runBlocking { FixtureServer.remote().commentaryPage(40644, inningsNumber = 2) }.overs.first { it.number == 11 }
+        val places = pitchPlaces(over.balls)
+        // All outside off: two half volleys and four length balls, which used to share two marks.
+        assertTrue(places.all { it != null && it.column == lineColumn("Outside off") })
+        assertEquals(listOf(2, 3, 3, 3, 3, 2), places.map { it!!.row })
+        assertEquals(4, places[1]!!.sharing)
+        assertEquals(places.size, places.map { Triple(it!!.column, it.row, it.slot) }.toSet().size, "no two balls in the same place")
+    }
+
+    @Test
+    @Config(qualifiers = "w411dp-h1500dp-420dpi")
     fun `an over replays ball by ball, then shows the over summary`() {
         val remote = FixtureServer.remote()
         val (detail, page) = runBlocking { remote.matchDetail(40644)!! to remote.commentaryPage(40644, inningsNumber = 2) }
@@ -298,6 +318,7 @@ class ScreensTest {
         compose.mainClock.advanceTimeBy(whole)
         compose.onNode(hasContentDescription("over summary", substring = true)).assertExists()
         compose.onNodeWithText("Over summary").assertExists()
+        compose.onNode(hasContentDescription("Pitch map: ball 1 half volley, outside off", substring = true)).assertExists()
         compose.screenshot("over-replay-2-summary-phone-dark")
     }
 

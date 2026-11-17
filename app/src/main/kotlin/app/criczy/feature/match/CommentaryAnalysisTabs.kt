@@ -9,6 +9,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import app.criczy.ui.components.BallStoryKind
 import app.criczy.ui.components.OverGround
+import androidx.compose.foundation.layout.height
+import app.criczy.ui.components.OverPitchMap
 import app.criczy.ui.components.replayMillis
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -263,8 +265,15 @@ internal fun OverReplayPanel(detail: MatchDetail, over: Over) {
                 modifier = Modifier.align(Alignment.CenterHorizontally).fillMaxWidth().widthIn(max = 480.dp).padding(horizontal = 8.dp),
                 label = "overGround",
             ) { i ->
-                if (i < balls.size) BallGround(balls[i], Modifier.fillMaxWidth(), animate = true, replayKey = run)
-                else OverGround(balls, Modifier.fillMaxWidth(), animate = true, replayKey = run)
+                if (i < balls.size) {
+                    BallGround(balls[i], Modifier.fillMaxWidth(), animate = true, replayKey = run)
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OverGround(balls, Modifier.fillMaxWidth(), animate = true, replayKey = run)
+                        Text("WHERE EACH BALL PITCHED", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp, top = 4.dp))
+                        OverPitchMap(balls, Modifier.fillMaxWidth().height(280.dp).padding(horizontal = 6.dp), animate = true, replayKey = run)
+                    }
+                }
             }
             // The over, ball by ball; the one on the ground is ringed.
             Row(
@@ -275,13 +284,16 @@ internal fun OverReplayPanel(detail: MatchDetail, over: Over) {
                 balls.forEachIndexed { i, ball ->
                     val current = i == showing
                     val scale by animateFloatAsState(if (current) 1.12f else 1f, label = "overStripBall")
-                    Box(
-                        Modifier.graphicsLayer { scaleX = scale; scaleY = scale }
-                            .border(2.dp, if (current) accent else Color.Transparent, CircleShape)
-                            .clip(CircleShape)
-                            .clickable(onClickLabel = "Play from ball ${i + 1}") { startAt = i; run++ }
-                            .padding(3.dp),
-                    ) { BallChip(ball, size = 30) }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("${i + 1}", style = MaterialTheme.typography.labelSmall, color = if (current) accent else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                        Box(
+                            Modifier.graphicsLayer { scaleX = scale; scaleY = scale }
+                                .border(2.dp, if (current) accent else Color.Transparent, CircleShape)
+                                .clip(CircleShape)
+                                .clickable(onClickLabel = "Play from ball ${i + 1}") { startAt = i; run++ }
+                                .padding(3.dp),
+                        ) { BallChip(ball, size = 30) }
+                    }
                 }
                 val onSummary = showing == balls.size
                 Text(
