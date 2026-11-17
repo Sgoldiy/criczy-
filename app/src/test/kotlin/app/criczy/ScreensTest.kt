@@ -786,6 +786,9 @@ class ScreensTest {
         compose.onNodeWithText("Amy Jones").performSemanticsAction(SemanticsActions.OnClick)
         // The player title is in capitals, which the search row is not.
         compose.waitUntil(10_000) { listOf("PLAYER", "AMY JONES").any { compose.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty() } }
+        // Recent form loads after the profile, from the scorecards of the player's team.
+        compose.waitUntil(20_000) { compose.onAllNodesWithText("Loading recent form…").fetchSemanticsNodes().isEmpty() }
+        compose.screenshot("player-phone-dark")
     }
 
     @Test

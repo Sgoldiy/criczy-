@@ -6,7 +6,7 @@ Read this before exploring. It records what is already known so it does not need
 
 Android cricket app (Kotlin, Jetpack Compose, Material 3) that replaces the owner's older app, Cricpeak (`Sgoldiy/CRICSCORE`, package `com.cricpeak.scorelive`). Do not modify that repository. Its audit is in `docs/CRICPEAK_AUDIT.md`; there is no need to read its code again.
 
-Status: feature-complete for v1.0.0, 108 tests passing, lint clean, release APK and AAB build. Never run on a real device or emulator.
+Status: feature-complete for v1.0.0, 110 tests passing, lint clean, release APK and AAB build. Never run on a real device or emulator.
 
 ## Decisions already made by the owner (do not re-ask)
 
@@ -32,7 +32,7 @@ Dependency direction: `app → core:data → core:network, core:analytics → co
 ## Commands
 
 ```bash
-./gradlew test                     # all 108 tests, about 4 minutes
+./gradlew test                     # all 110 tests, about 4 minutes
 ./gradlew :app:testDebugUnitTest   # UI tests only; screenshots go to app/build/screenshots
 ./gradlew :app:lintDebug
 ./gradlew :app:assembleDebug :app:assembleRelease :app:bundleRelease
@@ -69,11 +69,12 @@ $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-
 - `core:data` exposes Room and DataStore with `api(...)`; `app` needs their types.
 - Roborazzi only writes screenshots because `roborazzi.test.record=true` is set in `gradle.properties`.
 - In UI tests, tabs and filter chips in scrolling rows need `performScrollTo()` before `performClick()`, and items below the fold of a lazy list need `performScrollToNode`.
+- A tap that is sometimes lost in a UI test (seen on search results) is fixed by `performSemanticsAction(SemanticsActions.OnClick)` instead of `performClick()`.
 - Rows with `semantics(mergeDescendants = true) { contentDescription = … }` are found by content description, not by their inner text.
 - Commentary feed: the mobile feed has no ball ids and a ball re-bowled after a wide repeats its ball number, so list keys must not use either. A fixture can appear in two buckets at once; the mapper keeps the first.
 - Live events come from the newest ball in the commentary feed (`detectBallEvent`), falling back to score changes for matches without commentary. In tests with the paused clock (`mainClock.autoAdvance = false`), a state change needs `waitForIdle()` plus `advanceTimeByFrame()` before `advanceTimeBy`.
 - Every top bar title goes through `AppTitle` (white then accent, CRIC·ZY style; titles render in capitals, so tests must match capitals). The phone bottom bar is the custom `FloatingBottomBar` in `CriczyNavHost`; tablets keep the `NavigationRail`.
-- Commentary: each ball ends with a "See shot · FOUR" link; tapping it opens one ball at a time with `BallGround` replaying it (zoomed on the pitch from the bowler's hand, bounce from `bounceFraction(length)`, line from `lineOffset(line)`, then the camera pulls back for the shot). Drawn from behind the bowler: batter at the top, a right-hander's off side on the left; `shotEnd` turns the provider's behind-the-batter frame 180°. `ballStory` gives the label; dot balls never draw an arrow. The search test's tap on a result is flaky (also before these changes).
+- Commentary: each ball ends with a "See shot · FOUR" link; tapping it opens one ball at a time with `BallGround` replaying it (zoomed on the pitch from the bowler's hand, bounce from `bounceFraction(length)`, line from `lineOffset(line)`, then the camera pulls back for the shot). Drawn from behind the bowler: batter at the top, a right-hander's off side on the left; `shotEnd` turns the provider's behind-the-batter frame 180°. `ballStory` gives the label; dot balls never draw an arrow.
 - Over rows ("END OF OVER n", or "OVER n · IN PROGRESS" live) show the over's balls as chips and open `OverReplayPanel` in the same one-at-a-time accordion as balls: each ball plays in `BallGround` for `replayMillis(ball)` + 650 ms, then `OverGround` shows the over's shots numbered in bowling order. The owner removed the over pitch map; do not add it back.
 - Commentary feed (`CommentaryFeed`): filters All/Wickets/Boundaries (`CommentaryFilter`); `commentaryLines` splits "OUT! Bowler to Batter. …" into a heading and description using the scorecard names (all fixture messages match). A LazyColumn keeps its place by key, so a ball added above the first visible item stays off-screen: the feed checks "was at top" with `Snapshot.withoutReadObservation` when the newest ball changes and scrolls up, otherwise shows the "New ball" button. Earlier overs load on reaching the end, once per page (a failed page is not retried automatically).
 - Player photos go through `PlayerPhoto` / `Badge(photo = true)`: headshots are cut-outs with the head high in the frame, so the loaded image is cropped from the top and zoomed by `PHOTO_ZOOM` (initials are never zoomed). The headshot host `static-files.cricket-australia.pulselive.com` is not allowed from the sandbox (the owner declined adding it), so photo framing can only be checked on a device.

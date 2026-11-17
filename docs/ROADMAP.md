@@ -27,6 +27,18 @@ Done in the November 2026 polish session:
   suggestions), More (cards with icons).
 - **Player photos** are cropped from the top and zoomed on the face everywhere.
 
+Done on 17 November 2026:
+
+- **Continuous checks:** GitHub Actions (`.github/workflows/checks.yml`) runs every test, lint
+  and a release build on each push and keeps the APK as the `criczy-release-apk` artifact.
+- **Search test:** taps the result through semantics, so it is no longer flaky.
+- **Bottom bar:** smaller; main screens scroll on behind it.
+- **Long names** scroll sideways instead of being cut off.
+- **Images:** their own HTTP client (more downloads at once) and Coil memory and disk caches.
+- **Scorecard:** a small photo on each batting and bowling row.
+- **Player page:** recent form (last 5 matches of the player's team), shirt number, club, debut
+  dates and social links when the API has them.
+
 Owner decisions from that session: the over-summary pitch map was removed and must not come
 back; the Analysis tab's line-and-length table stays.
 
@@ -37,8 +49,6 @@ back; the Analysis tab's line-and-length table stays.
 | Test the release build on a real phone | Never done. Check photo framing (the photo host is blocked in the sandbox), notifications on Android 13+, the widget, replay and scroll smoothness, R8 behaviour | M |
 | Release signing | Add `keystore.properties`; see `RELEASE.md` | S |
 | Data licensing decision | The API, logos and photos belong to Cricket Australia; the biggest Play risk. Either get permission or move to a licensed provider (the data layer is built to be swapped). A licensed provider would also unlock most of "Blocked by the data source" below | — |
-| Continuous checks | GitHub Actions running `./gradlew test :app:lintDebug` on every push (free for a public repository) | S |
-| Fix the flaky search test | Tapping a search result is sometimes lost (also before the polish session); click through semantics instead of touch | S |
 
 ## 2. Data the API already sends that the app does not use
 
@@ -66,8 +76,8 @@ back; the Analysis tab's line-and-length table stays.
 8. **Team page (M).** Form strip, next match countdown, team news, XI from the last match.
 9. **Featured matches (S).** The home endpoint's `featured` list is unused; use it to order
    the top cards when nothing is live.
-10. **Player recent form (M–L).** Recent innings from the team's fixtures and scorecards
-    (one scorecard per match; cache them). Partly covers the missing career statistics.
+10. **Player recent form (done, basic).** Built: last 5 matches from the team's scorecards.
+    Still open: caching scorecards in Room, and players whose team the app has not seen yet.
 11. **Better player search (M).** The API has no name search, and the app only knows players
     from opened scorecards. Prefetch scorecards of current and recent matches (Wi-Fi, once a
     day) to fill the index.
@@ -100,7 +110,7 @@ back; the Analysis tab's line-and-length table stays.
 
 ## Suggested order
 
-1. Release readiness: real-device findings, signing, continuous checks, the flaky test.
+1. Release readiness: real-device findings and signing (both need the owner).
 2. Match page depth: upcoming preview, match report link, DRS reviews, milestones.
 3. Stats: batting control, pace v spin, fielding, standings form, team page.
 4. Retention: onboarding team picker, pinned live score, daily notification, sharing, widgets.
