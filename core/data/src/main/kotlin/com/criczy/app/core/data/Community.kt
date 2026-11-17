@@ -60,7 +60,16 @@ object Communities {
     const val MAX_OPTION = 40
     const val MAX_TEAMS = 5
     /** Posts reported this many times are hidden for everyone. */
-    const val HIDE_AFTER_REPORTS = 3
+    const val HIDE_AFTER_REPORTS = 5
+    /** Shown before joining; joining means accepting them. */
+    val RULES = listOf(
+        "No abuse, hate, threats or harassment of players, fans or anyone else.",
+        "No sexual content, violence or anything illegal.",
+        "No spam, advertising, betting tips or links to scams.",
+        "No personal information about anyone, including yourself.",
+        "Disagree with the take, not the person.",
+        "Posts that break these rules can be reported. Posts reported by several fans are hidden for everyone.",
+    )
     val USERNAME = Regex("^[A-Za-z0-9_]{3,20}$")
 
     fun team(id: Int) = "team-$id"

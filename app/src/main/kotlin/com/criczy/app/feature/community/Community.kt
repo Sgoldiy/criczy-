@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -65,6 +67,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -265,6 +268,7 @@ fun CommunityContent(state: CommunityUiState, actions: CommunityActions) {
 @Composable
 private fun JoinCommunity(state: CommunityUiState, actions: CommunityActions) {
     var name by rememberSaveable { mutableStateOf("") }
+    var agreed by rememberSaveable { mutableStateOf(false) }
     val problem = name.takeIf { it.isNotEmpty() }?.let { Communities.usernameProblem(it.trim()) }
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(top = 24.dp, bottom = bottomBarPadding(24.dp)),
@@ -297,10 +301,22 @@ private fun JoinCommunity(state: CommunityUiState, actions: CommunityActions) {
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(8.dp))
+        Text("Community rules", style = MaterialTheme.typography.titleSmall)
+        Communities.RULES.forEachIndexed { index, rule ->
+            Text("${index + 1}. $rule", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(8.dp)).toggleable(value = agreed, role = Role.Checkbox) { agreed = it },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(checked = agreed, onCheckedChange = null, modifier = Modifier.padding(12.dp))
+            Text("I agree to the community rules", style = MaterialTheme.typography.bodyMedium)
+        }
+        Spacer(Modifier.height(8.dp))
         Button(
             onClick = { actions.onJoin(name.trim()) },
-            enabled = !state.busy && name.isNotBlank() && problem == null,
+            enabled = !state.busy && name.isNotBlank() && problem == null && agreed,
             modifier = Modifier.fillMaxWidth(),
         ) { Text(if (state.busy) "Joining…" else "Join") }
     }

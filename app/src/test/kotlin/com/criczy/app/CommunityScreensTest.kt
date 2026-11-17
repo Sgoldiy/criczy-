@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import com.criczy.app.core.data.Communities
 import com.criczy.app.core.data.CommunityPost
@@ -60,8 +61,10 @@ class CommunityScreensTest {
         compose.onNodeWithText("At least 3 characters").assertIsDisplayed()
         compose.onNodeWithText("Join").assertIsNotEnabled()
         compose.onNodeWithText("ab").performTextInput("d_fan")
+        compose.onNodeWithText("Join").assertIsNotEnabled()
+        compose.onNodeWithText("I agree to the community rules").performScrollTo().performClick()
         compose.screenshot("community-join-phone-dark")
-        compose.onNodeWithText("Join").performClick()
+        compose.onNodeWithText("Join").performScrollTo().performClick()
         assertEquals("abd_fan", joined)
     }
 

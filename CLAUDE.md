@@ -70,6 +70,7 @@ $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-
 - `core:data` exposes Room and DataStore with `api(...)`; `app` needs their types.
 - Roborazzi only writes screenshots because `roborazzi.test.record=true` is set in `gradle.properties`.
 - In UI tests, tabs and filter chips in scrolling rows need `performScrollTo()` before `performClick()`, and items below the fold of a lazy list need `performScrollToNode`.
+- The search test (`search finds teams…`) can time out waiting for recent form when the whole suite runs under load; rerun it alone before suspecting a regression.
 - A tap that is sometimes lost in a UI test (seen on search results) is fixed by `performSemanticsAction(SemanticsActions.OnClick)` instead of `performClick()`.
 - Rows with `semantics(mergeDescendants = true) { contentDescription = … }` are found by content description, not by their inner text.
 - Commentary feed: the mobile feed has no ball ids and a ball re-bowled after a wide repeats its ball number, so list keys must not use either. A fixture can appear in two buckets at once; the mapper keeps the first.

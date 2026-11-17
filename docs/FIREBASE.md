@@ -14,7 +14,7 @@ Firestore. Nothing else from Firebase is included.
   hides and deletes its copies at the same time.
 - Posts already seen are kept in Room; opening a feed downloads only newer posts. The refresh
   button downloads the whole last 24 hours (updated vote counts, deleted posts).
-- Report hides a post on the phone and counts a report; 3 reports hide it for everyone. Block
+- Report hides a post on the phone and counts a report; 5 reports hide it for everyone. Members accept the community rules (`Communities.RULES`) when joining. Block
   hides an author on the phone. A small word list rejects abusive usernames and posts.
 
 ## Console setup (project `criczy-17fe7`)
