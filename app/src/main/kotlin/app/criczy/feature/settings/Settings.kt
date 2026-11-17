@@ -11,6 +11,29 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.ExitToApp
+import androidx.compose.material.icons.outlined.EmojiEvents
+import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.PrivacyTip
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.SportsCricket
+import androidx.compose.material.icons.outlined.StarRate
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.Wallpaper
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import app.criczy.ui.components.Panel
+import app.criczy.ui.theme.cricketColors
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -126,60 +149,92 @@ fun SettingsRoute(onTeams: () -> Unit, onPrivacy: () -> Unit) {
 @Composable
 fun SettingsScreen(prefs: UserPreferences, actions: SettingsActions) {
     Scaffold(topBar = { TopAppBar(title = { AppTitle("More") }) }) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
-            Group("Browse")
-            LinkRow("All teams", "Follow teams and see their fixtures", actions.onTeams)
-
-            Group("Appearance")
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(ThemeMode.SYSTEM to "System", ThemeMode.LIGHT to "Light", ThemeMode.DARK to "Dark").forEach { (mode, label) ->
-                    FilterChip(prefs.themeMode == mode, onClick = { actions.onTheme(mode) }, label = { Text(label) })
-                }
+        Column(
+            Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Section("Browse") {
+                LinkRow(Icons.Outlined.Groups, "All teams", "Follow teams and see their fixtures", actions.onTeams)
             }
-            if (Build.VERSION.SDK_INT >= 31) SwitchRow("Use wallpaper colours", "Match the app's colours to your wallpaper", prefs.dynamicColor, actions.onDynamicColor)
 
-            Group("Match alerts")
-            SwitchRow("Alerts for favourites", "Checked about every 15 minutes for teams, series and matches you follow", prefs.alertsEnabled, actions.onAlerts)
-            SwitchRow("Match starting", "Shortly before the start, and when play begins", prefs.alertMatchStart, actions.onAlertStart, enabled = prefs.alertsEnabled)
-            SwitchRow("Results", "When a followed match finishes", prefs.alertResults, actions.onAlertResults, enabled = prefs.alertsEnabled)
-            SwitchRow("Wickets", "May arrive a few minutes after the wicket", prefs.alertWickets, actions.onAlertWickets, enabled = prefs.alertsEnabled)
-            LinkRow("System notification settings", "Sound, vibration and lock screen", actions.onSystemNotifications)
+            Section("Appearance") {
+                Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    RowIcon(Icons.Outlined.Palette)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(ThemeMode.SYSTEM to "System", ThemeMode.LIGHT to "Light", ThemeMode.DARK to "Dark").forEach { (mode, label) ->
+                            FilterChip(prefs.themeMode == mode, onClick = { actions.onTheme(mode) }, label = { Text(label) })
+                        }
+                    }
+                }
+                if (Build.VERSION.SDK_INT >= 31) SwitchRow(Icons.Outlined.Wallpaper, "Use wallpaper colours", "Match the app's colours to your wallpaper", prefs.dynamicColor, actions.onDynamicColor)
+            }
 
-            Group("General")
-            SwitchRow("Confirm before exit", "Ask before closing the app from the home screen", prefs.confirmExit, actions.onConfirmExit)
+            Section("Match alerts") {
+                SwitchRow(Icons.Outlined.NotificationsActive, "Alerts for favourites", "Checked about every 15 minutes for teams, series and matches you follow", prefs.alertsEnabled, actions.onAlerts)
+                SwitchRow(Icons.Outlined.Schedule, "Match starting", "Shortly before the start, and when play begins", prefs.alertMatchStart, actions.onAlertStart, enabled = prefs.alertsEnabled)
+                SwitchRow(Icons.Outlined.EmojiEvents, "Results", "When a followed match finishes", prefs.alertResults, actions.onAlertResults, enabled = prefs.alertsEnabled)
+                SwitchRow(Icons.Outlined.SportsCricket, "Wickets", "May arrive a few minutes after the wicket", prefs.alertWickets, actions.onAlertWickets, enabled = prefs.alertsEnabled)
+                LinkRow(Icons.Outlined.Tune, "System notification settings", "Sound, vibration and lock screen", actions.onSystemNotifications)
+            }
 
-            Group("About")
-            LinkRow("Rate Criczy", "Tell others what you think on Google Play", actions.onRate)
-            LinkRow("Share the app", "Send a link to a friend", actions.onShareApp)
-            LinkRow("Privacy policy", "What the app stores and sends", actions.onPrivacy)
+            Section("General") {
+                SwitchRow(Icons.AutoMirrored.Outlined.ExitToApp, "Confirm before exit", "Ask before closing the app from the home screen", prefs.confirmExit, actions.onConfirmExit)
+            }
+
+            Section("About") {
+                LinkRow(Icons.Outlined.StarRate, "Rate Criczy", "Tell others what you think on Google Play", actions.onRate)
+                LinkRow(Icons.Outlined.Share, "Share the app", "Send a link to a friend", actions.onShareApp)
+                LinkRow(Icons.Outlined.PrivacyTip, "Privacy policy", "What the app stores and sends", actions.onPrivacy)
+            }
             Text(
                 "Version ${BuildConfig.VERSION_NAME}\nScores, news and images are provided by cricket.com.au. Criczy is not affiliated with Cricket Australia or any cricket board.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
             )
         }
     }
 }
 
 @Composable
-private fun Group(title: String) {
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(top = 8.dp))
-    Text(title.uppercase(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 4.dp))
+private fun Section(title: String, content: @Composable () -> Unit) {
+    Text(title.uppercase(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 14.dp, bottom = 2.dp))
+    Panel { Column(Modifier.padding(vertical = 4.dp)) { content() } }
+}
+
+/** A row's icon in a soft tinted square, so each setting is recognisable at a glance. */
+@Composable
+private fun RowIcon(icon: ImageVector, enabled: Boolean = true) {
+    val accent = cricketColors.accent
+    Box(
+        Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = if (enabled) 0.14f else 0.06f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = if (enabled) accent else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+    }
+    Spacer(Modifier.width(14.dp))
 }
 
 @Composable
-private fun LinkRow(title: String, subtitle: String, onClick: () -> Unit) {
-    Column(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp)) {
-        Text(title, style = MaterialTheme.typography.titleSmall)
-        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun LinkRow(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RowIcon(icon)
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
-private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit, enabled: Boolean = true) {
+private fun SwitchRow(icon: ImageVector, title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit, enabled: Boolean = true) {
     Row(
-        Modifier.fillMaxWidth().clickable(enabled = enabled, role = Role.Switch) { onChange(!checked) }.padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().clickable(enabled = enabled, role = Role.Switch) { onChange(!checked) }.padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        RowIcon(icon, enabled)
         Column(Modifier.weight(1f).padding(end = 12.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall, color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

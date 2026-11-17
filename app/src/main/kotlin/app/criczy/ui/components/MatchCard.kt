@@ -37,6 +37,8 @@ import app.criczy.ui.format.Formatters
 import app.criczy.ui.theme.ScoreFont
 import app.criczy.ui.theme.cricketColors
 import app.criczy.ui.theme.parseTeamColor
+import java.time.Instant
+import java.time.Duration
 
 /** Spoken summary of a match card, so screen readers get one sentence instead of fragments. */
 fun matchDescription(match: Match): String = buildString {
@@ -133,7 +135,8 @@ fun MatchCard(
                 TeamScoreRow(match, match.home, emphasise = match.winnerTeamId == match.home.id)
                 TeamScoreRow(match, match.away, emphasise = match.winnerTeamId == match.away.id)
                 Text(
-                    text = Formatters.statusLine(match),
+                    // A match starting within a day also says how long until it starts.
+                    text = Formatters.statusLine(match) + (startsIn(match)?.let { " · $it" } ?: ""),
                     style = MaterialTheme.typography.bodySmall,
                     color = when (match.state) {
                         MatchState.LIVE -> cricketColors.live
@@ -147,6 +150,13 @@ fun MatchCard(
             }
         }
     }
+}
+
+/** "in 2h 10m" for a match starting within the next day; null otherwise. */
+internal fun startsIn(match: Match, now: Instant = Instant.now()): String? {
+    val start = match.start ?: return null
+    if (match.state != MatchState.UPCOMING || start.isBefore(now) || Duration.between(now, start) > Duration.ofHours(24)) return null
+    return Formatters.countdown(start, now)
 }
 
 /** Large hero card for live matches at the top of the home screen. */

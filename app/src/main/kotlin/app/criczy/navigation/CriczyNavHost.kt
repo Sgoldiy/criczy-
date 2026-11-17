@@ -279,7 +279,7 @@ fun CriczyNavHost(navController: NavHostController = rememberNavController()) {
                         popEnterTransition = { enter(forward = false) },
                         popExitTransition = { exit(forward = false) },
                     ) {
-                        composable(Routes.HOME) { HomeRoute(onMatch, onSearch) }
+                        composable(Routes.HOME) { HomeRoute(onMatch, onSearch, onCompetition, onUrl) { navController.toTopLevel(Routes.NEWS) } }
                         composable(Routes.SERIES) { SeriesListRoute(onCompetition, onSearch) }
                         composable(Routes.NEWS) { NewsRoute(onUrl) }
                         composable(Routes.FAVOURITES) { FavouritesRoute(onMatch, onTeam, onCompetition, onPlayer) { navController.navigate(Routes.TEAMS) } }

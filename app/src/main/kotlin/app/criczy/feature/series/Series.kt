@@ -67,6 +67,11 @@ import app.criczy.core.data.keepLastData
 import app.criczy.core.data.loadOnce
 import app.criczy.core.data.pollingFlow
 import app.criczy.core.model.Competition
+import app.criczy.core.model.MatchState
+import app.criczy.ui.SeriesActivity
+import app.criczy.ui.latestBoard
+import app.criczy.ui.seriesActivity
+import app.criczy.ui.components.LivePill
 import app.criczy.core.model.MatchBoard
 import app.criczy.core.model.Standings
 import app.criczy.di.AppContainer
@@ -107,6 +112,15 @@ class SeriesListViewModel(private val container: AppContainer) : ViewModel() {
         loadOnce { container.catalog.competitions(forceRefresh = force).also { force = false } }
     }
     val state: StateFlow<Loadable<List<Competition>>> = source.state
+
+    /** What each series has on now, from the same board the home screen shows. */
+    val activity: StateFlow<Map<Int, SeriesActivity>> = container.matches.latestBoard().map { seriesActivity(it) }
+        .stateIn(viewModelScope, WhileUiVisible, emptyMap())
+
+    val followed: StateFlow<Set<Int>> = container.favourites.all
+        .map { all -> all.filter { it.type == FavouriteType.COMPETITION }.mapTo(HashSet()) { it.id } }
+        .stateIn(viewModelScope, WhileUiVisible, emptySet())
+
     fun refresh() { force = true; source.refresh() }
 }
 
@@ -115,10 +129,12 @@ fun SeriesListRoute(onCompetition: (Int, String) -> Unit, onSearch: () -> Unit) 
     val container = LocalAppContainer.current
     val vm: SeriesListViewModel = viewModel { SeriesListViewModel(container) }
     val state by vm.state.collectAsStateWithLifecycle()
-    SeriesListScreen(state, onCompetition, onSearch, vm::refresh)
+    val activity by vm.activity.collectAsStateWithLifecycle()
+    val followed by vm.followed.collectAsStateWithLifecycle()
+    SeriesListScreen(state, onCompetition, onSearch, vm::refresh, activity = activity, followed = followed)
 }
 
-private enum class SeriesFilter(val label: String) { ALL("All"), MEN("Men"), WOMEN("Women") }
+private enum class SeriesFilter(val label: String) { ALL("All"), FOLLOWING("Following"), MEN("Men"), WOMEN("Women") }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,6 +144,8 @@ fun SeriesListScreen(
     onSearch: () -> Unit,
     onRefresh: () -> Unit,
     now: Instant = Instant.now(),
+    activity: Map<Int, SeriesActivity> = emptyMap(),
+    followed: Set<Int> = emptySet(),
 ) {
     var filter by rememberSaveable { mutableStateOf(SeriesFilter.ALL) }
     Scaffold(
@@ -145,7 +163,12 @@ fun SeriesListScreen(
                 all == null -> ErrorState(state.error!!, onRefresh)
                 else -> {
                     val shown = all.filter {
-                        when (filter) { SeriesFilter.ALL -> true; SeriesFilter.MEN -> !it.isWomen; SeriesFilter.WOMEN -> it.isWomen }
+                        when (filter) {
+                            SeriesFilter.ALL -> true
+                            SeriesFilter.FOLLOWING -> it.id in followed
+                            SeriesFilter.MEN -> !it.isWomen
+                            SeriesFilter.WOMEN -> it.isWomen
+                        }
                     }
                     val current = shown.filter { c -> c.start?.isBefore(now) == true && c.end?.isAfter(now) != false }.sortedBy { it.end }
                     val upcoming = shown.filter { it.start?.isAfter(now) == true }.sortedBy { it.start }
@@ -155,8 +178,11 @@ fun SeriesListScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                SeriesFilter.entries.forEach { f -> FilterChip(filter == f, onClick = { filter = f }, label = { Text(f.label) }) }
+                            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                // Following appears once something is followed.
+                                SeriesFilter.entries.filter { it != SeriesFilter.FOLLOWING || followed.isNotEmpty() }.forEach { f ->
+                                    FilterChip(filter == f, onClick = { filter = f }, label = { Text(f.label) })
+                                }
                             }
                         }
                         listOf("Happening now" to current, "Coming up" to upcoming, "Recently finished" to finished).forEach { (title, list) ->
@@ -164,7 +190,9 @@ fun SeriesListScreen(
                                 item(span = { GridItemSpan(maxLineSpan) }, key = title) {
                                     Text("${title.uppercase()} · ${list.size}", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
                                 }
-                                items(list, key = { it.id }) { CompetitionRow(it, inProgress = list === current) { onCompetition(it.id, it.name) } }
+                                items(list, key = { it.id }) {
+                                    CompetitionRow(it, inProgress = list === current, activity = activity[it.id], isFollowed = it.id in followed) { onCompetition(it.id, it.name) }
+                                }
                             }
                         }
                         if (shown.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { EmptyState("No series", "No series match this filter.") }
@@ -190,7 +218,7 @@ internal fun shortFormat(label: String): String {
 
 /** One series. Every card is the same height, with the format in the top-right corner. */
 @Composable
-private fun CompetitionRow(competition: Competition, inProgress: Boolean, onClick: () -> Unit) {
+private fun CompetitionRow(competition: Competition, inProgress: Boolean, activity: SeriesActivity?, isFollowed: Boolean, onClick: () -> Unit) {
     Panel(Modifier.clip(MaterialTheme.shapes.medium).clickable(onClickLabel = "Open series", onClick = onClick)) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
             Badge(competition.name.filter { it.isUpperCase() || it.isDigit() }.take(3).ifBlank { competition.name }, competition.logoUrl, null, size = 44.dp)
@@ -199,6 +227,10 @@ private fun CompetitionRow(competition: Competition, inProgress: Boolean, onClic
                 Row(verticalAlignment = Alignment.Top) {
                     // Two lines are always reserved so the date sits in the same place on every card.
                     Text(competition.name, style = MaterialTheme.typography.titleSmall, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    if (isFollowed) {
+                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.Filled.Star, contentDescription = "Following", tint = cricketColors.accent, modifier = Modifier.size(18.dp))
+                    }
                     competition.formatLabel?.let {
                         Spacer(Modifier.width(8.dp))
                         Pill(shortFormat(it))
@@ -214,6 +246,26 @@ private fun CompetitionRow(competition: Competition, inProgress: Boolean, onClic
                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
+                }
+                // What is on in the series right now, or next.
+                val current = activity?.current
+                val next = activity?.next
+                if (current != null || next != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (current != null) {
+                            if (current.state == MatchState.LIVE) LivePill() else Pill("IN PLAY")
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                listOfNotNull(current.title, current.currentInnings?.let { "${current.team(it.battingTeamId)?.shortName.orEmpty()} ${it.scoreText}".trim() }).joinToString(" · "),
+                                style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                        } else if (next != null) {
+                            Text(
+                                "Next · ${next.title} · ${Formatters.matchTime(next.start)}",
+                                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                 }
             }
         }

@@ -6,7 +6,7 @@ Read this before exploring. It records what is already known so it does not need
 
 Android cricket app (Kotlin, Jetpack Compose, Material 3) that replaces the owner's older app, Cricpeak (`Sgoldiy/CRICSCORE`, package `com.cricpeak.scorelive`). Do not modify that repository. Its audit is in `docs/CRICPEAK_AUDIT.md`; there is no need to read its code again.
 
-Status: feature-complete for v1.0.0, 102 tests passing, lint clean, release APK and AAB build. Never run on a real device or emulator.
+Status: feature-complete for v1.0.0, 108 tests passing, lint clean, release APK and AAB build. Never run on a real device or emulator.
 
 ## Decisions already made by the owner (do not re-ask)
 
@@ -32,7 +32,7 @@ Dependency direction: `app → core:data → core:network, core:analytics → co
 ## Commands
 
 ```bash
-./gradlew test                     # all 102 tests, about 4 minutes
+./gradlew test                     # all 108 tests, about 4 minutes
 ./gradlew :app:testDebugUnitTest   # UI tests only; screenshots go to app/build/screenshots
 ./gradlew :app:lintDebug
 ./gradlew :app:assembleDebug :app:assembleRelease :app:bundleRelease
@@ -78,6 +78,7 @@ $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-
 - Commentary feed (`CommentaryFeed`): filters All/Wickets/Boundaries (`CommentaryFilter`); `commentaryLines` splits "OUT! Bowler to Batter. …" into a heading and description using the scorecard names (all fixture messages match). A LazyColumn keeps its place by key, so a ball added above the first visible item stays off-screen: the feed checks "was at top" with `Snapshot.withoutReadObservation` when the newest ball changes and scrolls up, otherwise shows the "New ball" button. Earlier overs load on reaching the end, once per page (a failed page is not retried automatically).
 - Player photos go through `PlayerPhoto` / `Badge(photo = true)`: headshots are cut-outs with the head high in the frame, so the loaded image is cropped from the top and zoomed by `PHOTO_ZOOM` (initials are never zoomed). The headshot host `static-files.cricket-australia.pulselive.com` is not allowed from the sandbox (the owner declined adding it), so photo framing can only be checked on a device.
 - Match summary: key moments and recent overs call `openInCommentary(key)` in `MatchScreen`, which sets `commentaryFocus`; `CommentaryFeed` opens that row and scrolls to `feedIndexOf(key)`. "More from" the series comes from `MatchViewModel.seriesMatches` (`moreFromSeries`: live, then next, then recent) and opens matches through `MatchActions.onMatch`. Squads are a role-grouped grid (`squadGroups`) with a team switch.
+- Main screens share the home board through `MatchRepository.latestBoard()` (loads once if home has not) and the pure helpers in `ui/BoardInsights.kt` (`seriesInPlay`, `seriesActivity`, `followedMatches`, `favouriteStatus`, `suggestedTeams`). News stories carry team, series and match ids, which drive the News Following filter. The test data's series list and board share no series, so series-card activity is tested by rendering `SeriesListScreen` directly.
 - Pushing needs the Claude GitHub App to have write access to `Sgoldiy/criczy-`. A 403 on push is a permission problem for the owner to fix, not something to retry.
 
 ## API facts (full detail in `docs/API.md`)

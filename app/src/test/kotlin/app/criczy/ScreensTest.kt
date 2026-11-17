@@ -40,6 +40,18 @@ import androidx.compose.ui.test.assertCountEquals
 import app.criczy.core.model.Ball
 import app.criczy.core.model.BallOutcome
 import app.criczy.feature.match.CommentaryTab
+import app.criczy.feature.favourites.FavouritesDashboard
+import app.criczy.feature.news.NewsFeed
+import app.criczy.feature.news.NewsFollows
+import app.criczy.feature.news.NewsScreen
+import app.criczy.feature.series.SeriesListScreen
+import app.criczy.ui.SeriesActivity
+import app.criczy.ui.favouriteStatus
+import app.criczy.ui.followedMatches
+import app.criczy.ui.seriesActivity
+import app.criczy.ui.seriesInPlay
+import app.criczy.ui.suggestedTeams
+import app.criczy.ui.components.startsIn
 import androidx.compose.ui.test.isSelectable
 import app.criczy.feature.match.battingMilestone
 import app.criczy.feature.match.bowlingHaul
@@ -304,6 +316,116 @@ class ScreensTest {
     private fun seeLinks(): List<String> =
         compose.onAllNodes(hasText("See shot ·", substring = true).or(hasText("See ball ·", substring = true)))
             .fetchSemanticsNodes().map { node -> node.config[SemanticsProperties.Text].joinToString(" ") }
+
+    @Test
+    fun `board insights for series, favourites and suggestions`() {
+        val board = runBlocking { FixtureServer.remote().matchBoard() }
+        val test = board.live.first { it.id == 41015 }
+        val now = board.upcoming.mapNotNull { it.start }.min().minusSeconds(3_600)
+        // Series in play: those with a match on come first, then those starting within a day, once each.
+        val shortcuts = seriesInPlay(board, now)
+        assertEquals(board.live.map { it.competition.id }.distinct(), shortcuts.take(board.live.map { it.competition.id }.distinct().size).map { it.competition.id })
+        assertEquals(shortcuts.size, shortcuts.map { it.competition.id }.distinct().size)
+        assertTrue(shortcuts.size > board.live.map { it.competition.id }.distinct().size, "an upcoming series is offered too")
+        // Each series knows its match in play and its next fixture.
+        assertEquals(test, seriesActivity(board)[test.competition.id]?.current)
+        // A followed team says what it is doing; a followed match says when it starts or how it ended.
+        val team = Favourite(FavouriteType.TEAM, test.home.id, test.home.name, test.home.shortName, null, null)
+        assertEquals("In progress · AFG v ZIM · AFG 143/5", favouriteStatus(board, team, now)?.text)
+        val upcoming = board.upcoming.first()
+        assertTrue(favouriteStatus(board, Favourite(FavouriteType.MATCH, upcoming.id, upcoming.title, null, null, null), now)!!.text.startsWith("Starts · "))
+        val finished = board.completed.first()
+        assertTrue(favouriteStatus(board, Favourite(FavouriteType.MATCH, finished.id, finished.title, null, null, null), now)!!.text.startsWith("Result · "))
+        assertEquals(test, followedMatches(board, listOf(team)).first())
+        // Teams to suggest: playing now or soon, never one already followed, each once.
+        val suggestions = suggestedTeams(board, setOf(test.home.id))
+        assertTrue(suggestions.none { it.id == test.home.id } && suggestions.size == suggestions.map { it.id }.distinct().size)
+        // Upcoming cards count down only within a day.
+        val soon = upcoming.copy(start = now.plusSeconds(2 * 3_600 + 600), state = MatchState.UPCOMING)
+        assertEquals("in 2h 10m", startsIn(soon, now))
+        assertEquals(null, startsIn(soon.copy(start = now.plusSeconds(30 * 3_600)), now))
+        assertEquals(null, startsIn(test, now))
+    }
+
+    @Test
+    fun `home offers series in play and top stories, and More news opens the news`() {
+        launchApp()
+        compose.awaitText("Afghanistan Men")
+        compose.onAllNodes(hasScrollToNodeAction()).onLast().performScrollToNode(hasText("SERIES IN PLAY"))
+        compose.onNodeWithText("SERIES IN PLAY").assertIsDisplayed()
+        compose.onAllNodes(hasScrollToNodeAction()).onLast().performScrollToNode(hasText("TOP STORIES"))
+        compose.screenshot("home-live-stories-phone-dark")
+        compose.onNodeWithText("More news").performClick()
+        compose.awaitText("Match reports", substring = true)
+    }
+
+    @Test
+    fun `series cards show what is on now, and followed series can be filtered`() {
+        val remote = FixtureServer.remote()
+        val competitions = runBlocking { remote.competitions() }
+        // The two series at the top of the list, as the screen orders them.
+        val (first, second) = competitions.filter { it.start?.isAfter(java.time.Instant.now()) == true }.sortedBy { it.start }
+        val board = runBlocking { remote.matchBoard() }
+        val live = board.live.first { it.id == 41015 }
+        val next = board.upcoming.first()
+        val activity = mapOf(first.id to SeriesActivity(current = live, next = null), second.id to SeriesActivity(current = null, next = next))
+        compose.setCriczyContent {
+            Surface { SeriesListScreen(Loadable(data = competitions, loading = false), { _, _ -> }, {}, {}, activity = activity, followed = setOf(second.id)) }
+        }
+        compose.awaitText("AFG v ZIM · AFG 143/5")
+        compose.onNodeWithText("Next · ${next.title}", substring = true).assertIsDisplayed()
+        compose.screenshot("series-list-activity-phone-dark")
+        compose.onNodeWithText("Following").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(first.name).fetchSemanticsNodes().isEmpty() }
+        compose.onNodeWithText(second.name).assertIsDisplayed()
+    }
+
+    @Test
+    fun `news leads with one story, lists the rest compactly, and filters to followed teams`() {
+        val articles = runBlocking { FixtureServer.remote().news() }
+        val team = articles.flatMap { it.teamIds }.groupingBy { it }.eachCount().maxBy { it.value }.key
+        val about = articles.filter { team in it.teamIds }
+        compose.setCriczyContent {
+            Surface { NewsScreen(Loadable(data = NewsFeed(articles, emptyList()), loading = false), {}, {}, follows = NewsFollows(teams = setOf(team))) }
+        }
+        compose.awaitText(articles.first().title)
+        compose.screenshot("news-lead-and-rows-phone-dark")
+        compose.onNodeWithText("Following · ${about.size}").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText(about.first().title).assertIsDisplayed()
+        val elsewhere = articles.firstOrNull { team !in it.teamIds }
+        if (elsewhere != null) assertEquals(0, compose.onAllNodesWithText(elsewhere.title).fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun `favourites show what followed teams are doing, and suggest teams to follow`() {
+        val board = runBlocking { FixtureServer.remote().matchBoard() }
+        val test = board.live.first { it.id == 41015 }
+        val team = Favourite(FavouriteType.TEAM, test.home.id, test.home.name, test.home.shortName, test.home.logoUrl, test.home.colorHex)
+        val dashboard = FavouritesDashboard(
+            matches = followedMatches(board, listOf(team)),
+            status = mapOf("TEAM-${team.id}" to favouriteStatus(board, team)!!),
+            suggestions = suggestedTeams(board, setOf(team.id)),
+        )
+        compose.setCriczyContent { Surface { FavouritesScreen(listOf(team), {}, {}, { _, _ -> }, {}, {}, {}, dashboard) } }
+        compose.awaitText("YOUR MATCHES")
+        compose.onNodeWithText("In progress · AFG v ZIM · AFG 143/5").assertIsDisplayed()
+        compose.screenshot("favourites-dashboard-phone-dark")
+    }
+
+    @Test
+    fun `empty favourites offer teams playing now to follow in one tap`() {
+        val board = runBlocking { FixtureServer.remote().matchBoard() }
+        val suggestions = suggestedTeams(board, emptySet())
+        var followed: app.criczy.core.model.Team? = null
+        compose.setCriczyContent(dark = false) {
+            Surface { FavouritesScreen(emptyList(), {}, {}, { _, _ -> }, {}, {}, {}, FavouritesDashboard(suggestions = suggestions)) { followed = it } }
+        }
+        compose.awaitText("PLAYING NOW", substring = true)
+        compose.screenshot("favourites-empty-suggestions-phone-light")
+        compose.onNodeWithText(suggestions.first().name).performClick()
+        assertEquals(suggestions.first(), followed)
+    }
 
     @Test
     fun `summary helpers pick key moments, figures, milestones and the rest of the series`() {

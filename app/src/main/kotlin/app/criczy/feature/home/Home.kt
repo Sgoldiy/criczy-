@@ -1,6 +1,16 @@
 package app.criczy.feature.home
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.Alignment
+import app.criczy.core.model.NewsArticle
+import app.criczy.ui.SeriesShortcut
+import app.criczy.ui.seriesInPlay
+import app.criczy.ui.components.NewsRow
+import app.criczy.ui.components.SeriesChip
+import app.criczy.ui.theme.cricketColors
+import androidx.compose.ui.text.font.FontWeight
+import kotlinx.coroutines.CancellationException
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -88,6 +98,10 @@ data class HomeUiState(
     val live: List<Match> = emptyList(),
     val upcoming: List<Match> = emptyList(),
     val completed: List<Match> = emptyList(),
+    /** Series with a match in play or starting within a day, unfiltered. */
+    val seriesInPlay: List<SeriesShortcut> = emptyList(),
+    /** The latest few stories, to read between overs. */
+    val stories: List<NewsArticle> = emptyList(),
 )
 
 class HomeViewModel(container: AppContainer) : ViewModel() {
@@ -95,10 +109,24 @@ class HomeViewModel(container: AppContainer) : ViewModel() {
         pollingFlow(nextDelayMs = RefreshPolicy::forBoard) { container.matches.board() }
     }
     private val filter = MutableStateFlow(HomeFilter.ALL)
+    private val stories = MutableStateFlow<List<NewsArticle>>(emptyList())
+
+    init {
+        // Stories are a bonus under the scores: loaded once, and the screen is complete without them.
+        viewModelScope.launch {
+            stories.value = try {
+                container.news.news().take(3)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+    }
 
     val state: StateFlow<HomeUiState> = combine(
-        board.state, filter, container.favourites.all, container.connection.servingCached,
-    ) { loadable, selected, favourites, cached ->
+        board.state, filter, container.favourites.all, container.connection.servingCached, stories,
+    ) { loadable, selected, favourites, cached, latestStories ->
         val teams = favourites.filter { it.type == FavouriteType.TEAM }.mapTo(HashSet()) { it.id }
         val matchIds = favourites.filter { it.type == FavouriteType.MATCH }.mapTo(HashSet()) { it.id }
         val competitions = favourites.filter { it.type == FavouriteType.COMPETITION }.mapTo(HashSet()) { it.id }
@@ -113,6 +141,8 @@ class HomeViewModel(container: AppContainer) : ViewModel() {
             live = data.live.filtered().sortedBy { it.state != MatchState.LIVE },
             upcoming = data.upcoming.filtered().sortedBy { it.start },
             completed = data.completed.filtered().sortedByDescending { it.start },
+            seriesInPlay = seriesInPlay(data),
+            stories = latestStories,
         )
     }.stateIn(viewModelScope, WhileUiVisible, HomeUiState())
 
@@ -121,11 +151,17 @@ class HomeViewModel(container: AppContainer) : ViewModel() {
 }
 
 @Composable
-fun HomeRoute(onMatch: (Int) -> Unit, onSearch: () -> Unit) {
+fun HomeRoute(
+    onMatch: (Int) -> Unit,
+    onSearch: () -> Unit,
+    onCompetition: (Int, String) -> Unit = { _, _ -> },
+    onOpenUrl: (String) -> Unit = {},
+    onNews: () -> Unit = {},
+) {
     val container = LocalAppContainer.current
     val vm: HomeViewModel = viewModel { HomeViewModel(container) }
     val state by vm.state.collectAsStateWithLifecycle()
-    HomeScreen(state, onMatch, onSearch, vm::refresh, vm::setFilter)
+    HomeScreen(state, onMatch, onSearch, vm::refresh, vm::setFilter, onCompetition, onOpenUrl, onNews)
 }
 
 private val tabs = listOf("Live", "Upcoming", "Results")
@@ -138,6 +174,9 @@ fun HomeScreen(
     onSearch: () -> Unit,
     onRefresh: () -> Unit,
     onFilter: (HomeFilter) -> Unit,
+    onCompetition: (Int, String) -> Unit = { _, _ -> },
+    onOpenUrl: (String) -> Unit = {},
+    onNews: () -> Unit = {},
 ) {
     val pager = rememberPagerState { tabs.size }
     val scope = rememberCoroutineScope()
@@ -182,7 +221,7 @@ fun HomeScreen(
                     state.board.isFailedEmpty -> ErrorState(state.board.error!!, onRefresh)
                     else -> HorizontalPager(pager, Modifier.fillMaxSize()) { page ->
                         when (page) {
-                            0 -> LiveTab(state, onMatch)
+                            0 -> LiveTab(state, onMatch, onCompetition, onOpenUrl, onNews)
                             1 -> MatchList(state.upcoming, state, onMatch, groupByDay = true, emptyTitle = "No upcoming matches", emptyBody = "Nothing scheduled matches this filter.")
                             else -> MatchList(state.completed, state, onMatch, groupByDay = false, emptyTitle = "No results", emptyBody = "No finished matches match this filter.")
                         }
@@ -196,7 +235,13 @@ fun HomeScreen(
 private val gridPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp)
 
 @Composable
-private fun LiveTab(state: HomeUiState, onMatch: (Int) -> Unit) {
+private fun LiveTab(
+    state: HomeUiState,
+    onMatch: (Int) -> Unit,
+    onCompetition: (Int, String) -> Unit,
+    onOpenUrl: (String) -> Unit,
+    onNews: () -> Unit,
+) {
     val inPlay = state.live.filter { it.state == MatchState.LIVE }
     val paused = state.live.filter { it.state != MatchState.LIVE }
     LazyVerticalGrid(
@@ -227,10 +272,35 @@ private fun LiveTab(state: HomeUiState, onMatch: (Int) -> Unit) {
             item(span = { GridItemSpan(maxLineSpan) }) { GroupLabel(if (inPlay.isEmpty()) "In progress" else "At a break") }
             items(paused, key = { it.id }) { MatchCard(it, { onMatch(it.id) }, isFavourite = it.id in state.followedMatchIds) }
         }
+        // Straight into a series with something on: tables, fixtures and stats are a tap away.
+        if (state.seriesInPlay.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "series-in-play") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GroupLabel("Series in play")
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        state.seriesInPlay.forEach { shortcut ->
+                            SeriesChip(shortcut.competition, shortcut.live) { onCompetition(shortcut.competition.id, shortcut.competition.name) }
+                        }
+                    }
+                }
+            }
+        }
         val next = state.upcoming.take(4)
         if (next.isNotEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) { GroupLabel("Up next") }
             items(next, key = { "next-${it.id}" }) { MatchCard(it, { onMatch(it.id) }, isFavourite = it.id in state.followedMatchIds) }
+        }
+        if (state.stories.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "stories-title") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) { GroupLabel("Top stories") }
+                    Text(
+                        "More news", style = MaterialTheme.typography.labelLarge, color = cricketColors.accent, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 6.dp).clickable(onClickLabel = "Open news", onClick = onNews).padding(8.dp),
+                    )
+                }
+            }
+            items(state.stories, key = { "story-${it.id}" }) { article -> NewsRow(article, onClick = { onOpenUrl(article.url) }) }
         }
     }
 }
