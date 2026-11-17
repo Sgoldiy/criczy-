@@ -31,14 +31,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -71,6 +67,9 @@ import app.criczy.ui.theme.ScoreFont
 import app.criczy.ui.theme.cricketColors
 import app.criczy.ui.theme.parseTeamColor
 import kotlinx.coroutines.launch
+import app.criczy.ui.components.AppTitle
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 data class MatchActions(
     val onBack: () -> Unit,
@@ -142,7 +141,7 @@ fun MatchScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(data?.match?.title ?: "Match", style = MaterialTheme.typography.titleLarge, maxLines = 1)
+                        AppTitle(data?.match?.title ?: "Match", fontSize = 24.sp)
                         if (data != null) {
                             Text(
                                 listOf(data.match.name, data.match.competition.name).filter { it.isNotBlank() }.joinToString(" · "),

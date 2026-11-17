@@ -5,6 +5,28 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import app.criczy.ui.theme.cricketColors
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -39,14 +61,11 @@ import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Newspaper
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -74,6 +93,7 @@ import app.criczy.feature.settings.PrivacyPolicyScreen
 import app.criczy.feature.settings.SettingsRoute
 import app.criczy.feature.teams.TeamRoute
 import app.criczy.feature.teams.TeamsRoute
+import androidx.compose.runtime.getValue
 
 private data class TopLevel(val route: String, val label: String, val icon: ImageVector, val selectedIcon: ImageVector = icon)
 
@@ -118,6 +138,66 @@ private fun TopLevelIcon(item: TopLevel, selected: Boolean) {
             if (isSelected) item.selectedIcon else item.icon, contentDescription = null,
             modifier = Modifier.graphicsLayer { scaleX = scale; scaleY = scale },
         )
+    }
+}
+
+/**
+ * A floating, rounded bar that sits above the system navigation area. A pill slides under the
+ * selected icon; every item keeps its label so the bar reads the same to screen readers.
+ */
+@Composable
+private fun FloatingBottomBar(current: String?, onSelect: (String) -> Unit) {
+    val accent = cricketColors.accent
+    val selectedIndex = destinations.indexOfFirst { it.route == current }.coerceAtLeast(0)
+    Box(
+        Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 14.dp, end = 14.dp, bottom = 10.dp, top = 4.dp),
+    ) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+            shadowElevation = 10.dp,
+            modifier = Modifier.fillMaxWidth().height(68.dp),
+        ) {
+            BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 6.dp)) {
+                val slot = maxWidth / destinations.size
+                val pillWidth = 56.dp
+                val offset by animateDpAsState(
+                    targetValue = slot * selectedIndex + (slot - pillWidth) / 2,
+                    animationSpec = spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow),
+                    label = "navPill",
+                )
+                // The sliding pill, drawn once beneath the icons.
+                Box(
+                    Modifier.offset(x = offset, y = 10.dp).size(pillWidth, 32.dp)
+                        .background(accent.copy(alpha = 0.18f), RoundedCornerShape(16.dp)),
+                )
+                Row(Modifier.fillMaxSize()) {
+                    destinations.forEach { item ->
+                        val selected = current == item.route
+                        val tint by animateColorAsState(
+                            if (selected) accent else MaterialTheme.colorScheme.onSurfaceVariant, tween(TAB_FADE_MS), label = "navTint",
+                        )
+                        Column(
+                            Modifier.weight(1f).fillMaxHeight()
+                                .clip(RoundedCornerShape(20.dp))
+                                .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(item.route) }),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Box(Modifier.padding(top = 10.dp).height(32.dp), contentAlignment = Alignment.Center) {
+                                CompositionLocalProvider(LocalContentColor provides tint) { TopLevelIcon(item, selected) }
+                            }
+                            Text(
+                                item.label, color = tint, maxLines = 1,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                modifier = Modifier.padding(top = 3.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -170,16 +250,7 @@ fun CriczyNavHost(navController: NavHostController = rememberNavController()) {
                     enter = expandVertically(tween(PUSH_MS)) + fadeIn(tween(PUSH_MS)),
                     exit = shrinkVertically(tween(PUSH_MS)) + fadeOut(tween(PUSH_MS / 2)),
                 ) {
-                    NavigationBar {
-                        destinations.forEach { item ->
-                            NavigationBarItem(
-                                selected = current == item.route,
-                                onClick = { navController.toTopLevel(item.route) },
-                                icon = { TopLevelIcon(item, current == item.route) },
-                                label = { Text(item.label) },
-                            )
-                        }
-                    }
+                    FloatingBottomBar(current) { navController.toTopLevel(it) }
                 }
             },
         ) { padding ->

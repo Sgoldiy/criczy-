@@ -24,7 +24,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,6 +50,8 @@ import app.criczy.ui.components.SkeletonList
 import app.criczy.ui.format.Formatters
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.flow.StateFlow
+import app.criczy.ui.components.AppTitle
+import androidx.compose.runtime.getValue
 
 data class NewsFeed(val articles: List<NewsArticle>, val videos: List<VideoClip>)
 
@@ -82,7 +83,7 @@ fun NewsRoute(onOpenUrl: (String) -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewsScreen(state: Loadable<NewsFeed>, onOpenUrl: (String) -> Unit, onRefresh: () -> Unit) {
-    Scaffold(topBar = { TopAppBar(title = { Text("NEWS", style = MaterialTheme.typography.headlineSmall) }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { AppTitle("News") }) }) { padding ->
         PullToRefreshBox(isRefreshing = state.loading && state.data != null, onRefresh = onRefresh, modifier = Modifier.padding(padding).fillMaxSize()) {
             val feed = state.data
             when {

@@ -27,10 +27,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,6 +49,7 @@ import app.criczy.di.AppContainer
 import app.criczy.ui.LocalAppContainer
 import app.criczy.ui.Refreshable
 import app.criczy.ui.WhileUiVisible
+import app.criczy.ui.components.AppTitle
 import app.criczy.ui.components.Badge
 import app.criczy.ui.components.EmptyState
 import app.criczy.ui.components.ErrorState
@@ -63,6 +62,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 class TeamsViewModel(private val container: AppContainer) : ViewModel() {
     private val source = Refreshable(viewModelScope) { loadOnce { container.catalog.teams() } }
@@ -98,7 +99,7 @@ fun TeamsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("TEAMS", style = MaterialTheme.typography.headlineSmall) },
+                title = { AppTitle("Teams") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
             )
         },
@@ -195,7 +196,7 @@ fun TeamScreen(state: TeamUiState, onBack: () -> Unit, onMatch: (Int) -> Unit, o
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (team != null) { Badge(team.shortName, team.logoUrl, team.colorHex, size = 32.dp); Spacer(Modifier.width(10.dp)) }
-                        Text(team?.name ?: "Team", style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        AppTitle(team?.name ?: "Team")
                     }
                 },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },

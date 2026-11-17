@@ -32,7 +32,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -52,6 +51,8 @@ import app.criczy.ui.WhileUiVisible
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import app.criczy.ui.components.AppTitle
+import androidx.compose.runtime.getValue
 
 class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val preferences: StateFlow<UserPreferences> = container.preferences.preferences.stateIn(viewModelScope, WhileUiVisible, UserPreferences())
@@ -124,7 +125,7 @@ fun SettingsRoute(onTeams: () -> Unit, onPrivacy: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(prefs: UserPreferences, actions: SettingsActions) {
-    Scaffold(topBar = { TopAppBar(title = { Text("MORE", style = MaterialTheme.typography.headlineSmall) }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { AppTitle("More") }) }) { padding ->
         Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
             Group("Browse")
             LinkRow("All teams", "Follow teams and see their fixtures", actions.onTeams)
@@ -203,7 +204,7 @@ fun PrivacyPolicyScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("PRIVACY POLICY", style = MaterialTheme.typography.titleLarge) },
+                title = { AppTitle("Privacy policy") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
             )
         },

@@ -156,10 +156,10 @@ class ScreensTest {
         compose.screenshot("match-scorecard-phone-dark")
 
         compose.onNodeWithText("Commentary").performClick()
-        compose.awaitText("LAST BALL")
-        // The newest delivery on the full-size ground, with what the scorers recorded about it.
-        compose.onNodeWithText("LAST BALL").assertIsDisplayed()
-        compose.onNode(hasContentDescription("Ground view", substring = true)).assertIsDisplayed()
+        awaitGrounds()
+        // Each delivery has its own ground showing just that ball, even when no shot was tracked.
+        assertTrue(compose.onAllNodes(hasContentDescription("Ground view of 0 scoring shots")).fetchSemanticsNodes().isNotEmpty(), "dot ball ground")
+        assertTrue(compose.onAllNodes(hasContentDescription("towards", substring = true)).fetchSemanticsNodes().isNotEmpty(), "tracked shot ground")
         compose.screenshot("match-commentary-phone-dark")
 
         compose.onNodeWithText("Analysis").performScrollTo().performClick()
@@ -217,7 +217,7 @@ class ScreensTest {
         val feed = CommentaryUiState(inningsNumber = 2, overs = page.overs.sortedByDescending { it.number }, loading = false)
         val none = MatchActions({}, {}, {}, {}, {}, {}, { _, _ -> }, {}, {}, {}, {}, {})
         compose.setCriczyContent(dark = false) { CommentaryTab(live, feed, none) }
-        compose.awaitText("LATEST")
+        awaitGrounds()
         compose.screenshot("match-commentary-live-phone-light")
     }
 
@@ -253,6 +253,10 @@ class ScreensTest {
             listOf("Test", "Women's Tests", "ODI", "Women's One-day internationals", "T20 International", "T20 Intl", "Women's Twenty20 internationals", "T20", "One day", "The Hundred").map(::shortFormat),
         )
     }
+
+    /** Every ball row has a ground; dot balls and wides show an empty one. */
+    private fun awaitGrounds(atLeast: Int = 2) =
+        compose.waitUntil(10_000) { compose.onAllNodes(hasContentDescription("Ground view", substring = true)).fetchSemanticsNodes().size >= atLeast }
 
     private fun fixtureBalls() = runBlocking { FixtureServer.remote().commentaryPage(40644, inningsNumber = 2) }.overs.flatMap { it.balls }
 
@@ -311,7 +315,7 @@ class ScreensTest {
     fun `commentary scrolls past a ball re-bowled after a wide`() {
         openFinishedMatch()
         compose.onNodeWithText("Commentary").performClick()
-        compose.awaitText("LAST BALL")
+        awaitGrounds()
         // Over 14 has two balls numbered 2 and the feed sends no ball ids; this used to crash the list.
         compose.onAllNodes(hasScrollToNodeAction()).onLast().performScrollToNode(hasText("END OF OVER 13"))
         compose.onNodeWithText("END OF OVER 13").assertIsDisplayed()
@@ -355,7 +359,8 @@ class ScreensTest {
         compose.awaitText("Amy Jones")
         compose.screenshot("search-player-phone-dark")
         compose.onNodeWithText("Amy Jones").performClick()
-        compose.awaitText("Player")
+        // The player title is in capitals, which the search row is not.
+        compose.waitUntil(10_000) { listOf("PLAYER", "AMY JONES").any { compose.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty() } }
     }
 
     @Test

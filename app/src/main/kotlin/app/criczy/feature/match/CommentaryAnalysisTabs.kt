@@ -1,23 +1,9 @@
 package app.criczy.feature.match
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import app.criczy.core.model.MatchState
 import app.criczy.ui.components.CricketGround
-import app.criczy.ui.components.LivePill
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,11 +27,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -78,6 +62,8 @@ import app.criczy.ui.format.Formatters
 import app.criczy.ui.theme.ScoreFont
 import app.criczy.ui.theme.cricketColors
 import app.criczy.ui.theme.parseTeamColor
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 // ---- commentary ----------------------------------------------------------------------------
 
@@ -91,13 +77,7 @@ internal fun CommentaryTab(detail: MatchDetail, state: CommentaryUiState, action
             state.overs.isEmpty() && state.error != null -> ErrorState(state.error, actions.onRefresh)
             state.overs.isEmpty() -> TabEmpty("No commentary yet", "Commentary appears here as soon as the first ball is bowled.")
             else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
-                val latest = latestBall(state)
-                if (latest != null && state.overs.any { o -> o.balls.any { it.shotAngle != null } }) {
-                    item(key = "ground") {
-                        val live = detail.match.state != MatchState.COMPLETED && latest.innings == detail.currentInnings?.number
-                        LatestBallPanel(detail, latest, state.overs, live)
-                    }
-                }
+                val newest = state.overs.first().balls.lastOrNull()
                 state.overs.forEach { over ->
                     if (over.isComplete || over != state.overs.first()) {
                         item(key = "over-${over.number}") { Box(Modifier.animateItem()) { OverSummaryRow(detail, over) } }
@@ -106,7 +86,8 @@ internal fun CommentaryTab(detail: MatchDetail, state: CommentaryUiState, action
                     // after a wide or no-ball repeats its number, so neither is unique.
                     val last = over.balls.lastIndex
                     items(over.balls.size, key = { "ball-${over.number}-${last - it}" }) { index ->
-                        Box(Modifier.animateItem()) { BallRow(detail, over.balls[last - index]) }
+                        val ball = over.balls[last - index]
+                        Box(Modifier.animateItem()) { BallRow(detail, ball, isNewest = ball === newest) }
                     }
                 }
                 if (state.canLoadOlder) {
@@ -117,72 +98,6 @@ internal fun CommentaryTab(detail: MatchDetail, state: CommentaryUiState, action
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-/**
- * The newest delivery on a full-width ground: the shot replays whenever a new ball arrives,
- * over faint lines for the other scoring shots in the overs loaded so far.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun LatestBallPanel(detail: MatchDetail, latest: LatestBall, overs: List<Over>, live: Boolean) {
-    val ball = latest.ball
-    val focus = remember(latest.id, ball) { WagonWheel.point(ball) }
-    val context = remember(overs) { WagonWheel.points(overs.flatMap { it.balls }) }
-    val pop = remember { Animatable(1f) }
-    LaunchedEffect(latest.id) {
-        pop.snapTo(0.6f)
-        pop.animateTo(1f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium))
-    }
-    Panel(Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (live) LivePill(text = "LATEST") else Pill("LAST BALL")
-                Spacer(Modifier.width(10.dp))
-                AnimatedContent(
-                    targetState = latest,
-                    transitionSpec = { (slideInVertically { it / 2 } + fadeIn()) togetherWith (slideOutVertically { -it / 2 } + fadeOut()) },
-                    contentKey = { it.id },
-                    modifier = Modifier.weight(1f),
-                    label = "latestBall",
-                ) { shown ->
-                    val bowler = detail.player(shown.ball.bowlerId)?.name ?: "Bowler"
-                    val batter = detail.player(shown.ball.batterId)?.name ?: "batter"
-                    Column {
-                        Text("${shown.over - 1}.${shown.ball.ballNumber}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("$bowler to $batter", style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-                Box(Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value }) { BallChip(ball, size = 38) }
-            }
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                CricketGround(context, focus, latest.id, Modifier.fillMaxWidth().widthIn(max = 440.dp))
-                if (focus == null) {
-                    Text(
-                        if (ball.isWide) "Wide · no shot played" else "No shot tracked for this ball",
-                        style = MaterialTheme.typography.labelMedium, color = Color.White,
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp)
-                            .clip(MaterialTheme.shapes.small).background(Color.Black.copy(alpha = 0.45f)).padding(horizontal = 10.dp, vertical = 4.dp),
-                    )
-                }
-            }
-            // What the scorers recorded about this delivery; nothing here is inferred.
-            val facts = listOfNotNull(
-                ball.fieldingPosition,
-                focus?.let { if (it.inTheAir) "In the air" else "Along the ground" },
-                ball.shot, ball.length, ball.line,
-            )
-            if (facts.isNotEmpty()) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { facts.forEach { Pill(it) } }
-            }
-            if (context.isNotEmpty()) {
-                Text(
-                    "Faint lines: the other ${context.size} scoring shots in the last ${overs.size} overs",
-                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
     }
@@ -208,17 +123,11 @@ private fun OverSummaryRow(detail: MatchDetail, over: Over) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun BallRow(detail: MatchDetail, ball: Ball) {
-    var expanded by rememberSaveable(ball.id) { mutableStateOf(false) }
+private fun BallRow(detail: MatchDetail, ball: Ball, isNewest: Boolean) {
     val comments = ball.commentary.filterNot { it.isEndOfOver }
     val facts = listOfNotNull(ball.length, ball.line, ball.shot, ball.footwork, ball.connection, ball.fieldingPosition, ball.bowlingDetail, ball.dismissalType)
-    val shot = remember(ball.id) { WagonWheel.point(ball) }
-    val canExpand = facts.isNotEmpty() || shot != null
-    Row(
-        Modifier.fillMaxWidth()
-            .then(if (canExpand) Modifier.clickable(onClickLabel = if (expanded) "Hide ball details" else "Show ball details") { expanded = !expanded } else Modifier)
-            .padding(horizontal = 16.dp, vertical = 9.dp),
-    ) {
+    val shot = remember(ball) { WagonWheel.point(ball) }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 9.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(44.dp)) {
             Text("${ball.overNumber - 1}.${ball.ballNumber}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.size(4.dp))
@@ -233,13 +142,31 @@ private fun BallRow(detail: MatchDetail, ball: Ball) {
             } else {
                 comments.forEach { Text(it.text, style = MaterialTheme.typography.bodyMedium) }
             }
-            AnimatedVisibility(expanded) {
-                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (shot != null) {
-                        CricketGround(emptyList(), shot, focusKey = expanded, Modifier.size(132.dp), showZoneLabels = false)
-                        Spacer(Modifier.width(12.dp))
+            // Every delivery gets its own ground showing only that ball, dot balls included.
+            // The newest one is larger and plays its shot; older ones are drawn where they landed.
+            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(contentAlignment = Alignment.BottomCenter) {
+                    CricketGround(
+                        emptyList(), shot, focusKey = ball,
+                        Modifier.size(if (isNewest) 196.dp else 140.dp),
+                        showZoneLabels = false, animate = isNewest, battingHand = ball.battingHand,
+                    )
+                    if (shot == null) {
+                        Text(
+                            when {
+                                ball.isWide -> "Wide"
+                                ball.batterRuns == 0 && !ball.isWicket -> "No shot"
+                                else -> "Not tracked"
+                            },
+                            style = MaterialTheme.typography.labelSmall, color = Color.White,
+                            modifier = Modifier.padding(bottom = if (isNewest) 30.dp else 22.dp)
+                                .clip(MaterialTheme.shapes.small).background(Color.Black.copy(alpha = 0.45f)).padding(horizontal = 8.dp, vertical = 2.dp),
+                        )
                     }
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                }
+                if (facts.isNotEmpty()) {
+                    Spacer(Modifier.width(12.dp))
+                    FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         facts.forEach { Pill(it) }
                     }
                 }

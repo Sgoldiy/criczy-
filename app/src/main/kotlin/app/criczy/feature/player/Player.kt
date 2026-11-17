@@ -24,7 +24,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -51,6 +50,8 @@ import app.criczy.ui.theme.cricketColors
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import app.criczy.ui.components.AppTitle
+import androidx.compose.runtime.getValue
 
 /** [player] is null when the provider has no profile for the id. */
 data class PlayerProfile(val player: Player?, val teamName: String?)
@@ -87,7 +88,7 @@ fun PlayerScreen(state: Loadable<PlayerProfile>, isFavourite: Boolean, onBack: (
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(player?.name ?: "Player", style = MaterialTheme.typography.titleLarge, maxLines = 1) },
+                title = { AppTitle(player?.name ?: "Player") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
                 actions = {
                     if (player != null) {

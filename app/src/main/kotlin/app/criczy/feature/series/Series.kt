@@ -43,11 +43,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,6 +74,7 @@ import app.criczy.feature.match.ComparePlayersSheet
 import app.criczy.ui.LocalAppContainer
 import app.criczy.ui.Refreshable
 import app.criczy.ui.WhileUiVisible
+import app.criczy.ui.components.AppTitle
 import app.criczy.ui.components.Badge
 import app.criczy.ui.components.EmptyState
 import app.criczy.ui.components.ErrorState
@@ -97,6 +96,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 // ---- list ----------------------------------------------------------------------------------
 
@@ -132,7 +133,7 @@ fun SeriesListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("SERIES", style = MaterialTheme.typography.headlineSmall) },
+                title = { AppTitle("Series") },
                 actions = { IconButton(onClick = onSearch) { Icon(Icons.Outlined.Search, contentDescription = "Search") } },
             )
         },
@@ -297,7 +298,7 @@ fun CompetitionScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(state.name.ifBlank { "Series" }, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { AppTitle(state.name.ifBlank { "Series" }) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
                 actions = {
                     if (state.competition != null) {

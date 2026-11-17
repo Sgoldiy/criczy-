@@ -66,14 +66,20 @@ fun CricketGround(
     modifier: Modifier = Modifier,
     showZoneLabels: Boolean = true,
     battingHand: String? = focus?.battingHand,
+    /** False draws the shot where it finished, with no replay. */
+    animate: Boolean = true,
 ) {
     val colors = cricketColors
     val scheme = MaterialTheme.colorScheme
     val measurer = rememberTextMeasurer()
-    val flight = remember { Animatable(0f) }
-    val landing = remember { Animatable(0f) }
-    LaunchedEffect(focusKey) {
-        if (focus == null) return@LaunchedEffect
+    val flight = remember { Animatable(if (animate) 0f else 1f) }
+    val landing = remember { Animatable(if (animate) 0f else 1f) }
+    LaunchedEffect(focusKey, animate) {
+        if (focus == null || !animate) {
+            flight.snapTo(1f)
+            landing.snapTo(1f)
+            return@LaunchedEffect
+        }
         landing.snapTo(0f)
         flight.snapTo(0f)
         // Longer hits take a little longer, as they would on a broadcast replay.

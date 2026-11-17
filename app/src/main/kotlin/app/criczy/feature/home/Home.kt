@@ -31,12 +31,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -53,6 +50,7 @@ import app.criczy.di.AppContainer
 import app.criczy.ui.LocalAppContainer
 import app.criczy.ui.Refreshable
 import app.criczy.ui.WhileUiVisible
+import app.criczy.ui.components.AppTitle
 import app.criczy.ui.components.EmptyState
 import app.criczy.ui.components.ErrorState
 import app.criczy.ui.components.FeaturedMatchCard
@@ -60,14 +58,13 @@ import app.criczy.ui.components.MatchCard
 import app.criczy.ui.components.SkeletonList
 import app.criczy.ui.components.StaleBanner
 import app.criczy.ui.format.Formatters
-import app.criczy.ui.theme.ScoreFont
-import app.criczy.ui.theme.cricketColors
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.ZoneId
+import androidx.compose.runtime.getValue
 
 enum class HomeFilter(val label: String) {
     ALL("All"), FOLLOWING("Following"), INTERNATIONAL("International"), T20("T20"), ONE_DAY("One-day"), TEST("Tests"), WOMEN("Women");
@@ -147,12 +144,7 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Row {
-                        Text("CRIC", fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = 28.sp, letterSpacing = 1.sp)
-                        Text("ZY", fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = 28.sp, letterSpacing = 1.sp, color = cricketColors.accent)
-                    }
-                },
+                title = { AppTitle("Criczy") },
                 actions = { IconButton(onClick = onSearch) { Icon(Icons.Outlined.Search, contentDescription = "Search") } },
             )
         },

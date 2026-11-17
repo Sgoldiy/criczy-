@@ -22,7 +22,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,6 +35,7 @@ import app.criczy.core.data.FavouriteType
 import app.criczy.di.AppContainer
 import app.criczy.ui.LocalAppContainer
 import app.criczy.ui.WhileUiVisible
+import app.criczy.ui.components.AppTitle
 import app.criczy.ui.components.Badge
 import app.criczy.ui.components.MessageState
 import app.criczy.ui.theme.cricketColors
@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.getValue
 
 class FavouritesViewModel(private val container: AppContainer) : ViewModel() {
     /** Null until the first database read, so the empty state does not flash on open. */
@@ -71,7 +72,7 @@ fun FavouritesScreen(
     onBrowseTeams: () -> Unit,
     onRemove: (Favourite) -> Unit,
 ) {
-    Scaffold(topBar = { TopAppBar(title = { Text("FAVOURITES", style = MaterialTheme.typography.headlineSmall) }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { AppTitle("Favourites") }) }) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             when {
                 favourites == null -> Unit
