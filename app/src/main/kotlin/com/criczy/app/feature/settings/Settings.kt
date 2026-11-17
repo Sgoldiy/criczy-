@@ -245,12 +245,13 @@ private fun SwitchRow(icon: ImageVector, title: String, subtitle: String, checke
 }
 
 internal val privacySections = listOf(
-    "Summary" to "Criczy does not ask you to sign in, does not collect personal information, and contains no advertising or analytics software.",
-    "What stays on your device" to "Your favourites, settings, the list of players you have come across, and a cache of scores so the app works offline. These never leave your device, and are removed when you clear the app's storage or uninstall it.",
+    "Summary" to "Criczy never asks for an email address, phone number or password, and contains no advertising or analytics software. If you join the fan community, the username you choose and what you post are stored with Google Firebase, and posts are deleted after 24 hours.",
+    "What stays on your device" to "Your favourites, settings, the list of players you have come across, a cache of scores so the app works offline, community posts you have already seen and the people you have blocked. These never leave your device, and are removed when you clear the app's storage or uninstall it.",
     "What is sent over the internet" to "To show scores, news and images the app requests them from cricket.com.au's servers. As with any website, those servers receive your IP address and basic technical details of the request. Criczy adds no identifiers to these requests.",
+    "Fan community" to "Joining the community creates an anonymous account with Google Firebase, with no email, phone number or password, and stores the username you choose so nobody else can take it. Your posts, polls, votes and reports are stored in Firebase with that username, can be read by everyone using the app, and are deleted automatically 24 hours after the post was made. Opening a team's community downloads that team's posts. Firebase receives your IP address to provide the service. Report anything abusive from the post's menu; posts reported by several people are hidden.",
     "Notifications" to "Match alerts are worked out on your device by checking scores periodically. No notification service or token is involved. You can turn alerts off in More, or in your system settings.",
     "Links" to "News stories, videos, tickets and maps open in your browser or other apps, which have their own privacy practices.",
-    "Children" to "The app is suitable for general audiences and does not knowingly collect information from anyone.",
+    "Children" to "The app is suitable for general audiences. The fan community is not directed at children under 13.",
     "Changes and contact" to "If this policy changes, the updated version will be published with an app update. Contact details for questions are on the app's Google Play listing.",
 )
 

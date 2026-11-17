@@ -68,6 +68,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import com.criczy.app.feature.community.CommunityRoute
 
 class FavouritesViewModel(private val container: AppContainer) : ViewModel() {
     /** Null until the first database read, so the empty state does not flash on open. */
@@ -102,7 +108,7 @@ fun FavouritesRoute(onMatch: (Int) -> Unit, onTeam: (Int) -> Unit, onCompetition
     val vm: FavouritesViewModel = viewModel { FavouritesViewModel(container) }
     val state by vm.state.collectAsStateWithLifecycle()
     val dashboard by vm.dashboard.collectAsStateWithLifecycle()
-    FavouritesScreen(state, onMatch, onTeam, onCompetition, onPlayer, onBrowseTeams, vm::remove, dashboard, vm::follow)
+    FavouritesScreen(state, onMatch, onTeam, onCompetition, onPlayer, onBrowseTeams, vm::remove, dashboard, community = { CommunityRoute() }, onFollowTeam = vm::follow)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -116,11 +122,21 @@ fun FavouritesScreen(
     onBrowseTeams: () -> Unit,
     onRemove: (Favourite) -> Unit,
     dashboard: FavouritesDashboard = FavouritesDashboard(),
+    initialTab: Int = 0,
+    /** The fan community for the followed teams, shown in the second tab. */
+    community: @Composable () -> Unit = {},
     onFollowTeam: (Team) -> Unit = {},
 ) {
+    var tab by rememberSaveable { mutableIntStateOf(initialTab) }
     Scaffold(topBar = { TopAppBar(title = { AppTitle("Favourites") }) }) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
+            TabRow(selectedTabIndex = tab) {
+                listOf("Following", "Community").forEachIndexed { index, title ->
+                    Tab(tab == index, onClick = { tab = index }, text = { Text(title) }, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             when {
+                tab == 1 -> community()
                 favourites == null -> Unit
                 favourites.isEmpty() -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = bottomBarPadding())) {
                     MessageState(

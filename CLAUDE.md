@@ -6,12 +6,13 @@ Read this before exploring. It records what is already known so it does not need
 
 Android cricket app (Kotlin, Jetpack Compose, Material 3) that replaces the owner's older app, Cricpeak (`Sgoldiy/CRICSCORE`, package `com.cricpeak.scorelive`). Do not modify that repository. Its audit is in `docs/CRICPEAK_AUDIT.md`; there is no need to read its code again.
 
-Status: feature-complete for v1.0.0, 112 tests passing, lint clean, release APK and AAB build. Never run on a real device or emulator.
+Status: feature-complete for v1.0.0 plus the fan community, 140 test runs passing (core:data tests run for debug and release), lint clean, release APK and AAB build. Never run on a real device or emulator.
 
 ## Decisions already made by the owner (do not re-ask)
 
 - Data source stays the cricket.com.au API, kept behind `CricketRemoteDataSource` so it can be swapped.
 - AI (Gemini) and ads (AdMob, rewarded locks) are deferred. Do not add them unless asked.
+- Firebase is used only for the fan community (anonymous Auth + Firestore); no Analytics, Messaging or Crashlytics. Design and console setup: `docs/FIREBASE.md`.
 - No premium purchases.
 - App name is Criczy, application id `com.criczy.app` (renamed from `app.criczy` on 18 Nov 2026, before any Play upload; packages and source folders match it). Never change it again once published.
 
@@ -84,6 +85,8 @@ $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-
 - One-line names that may not fit (top bar titles, match card team and series names) use `Modifier.scrollingText()` (a marquee) instead of an ellipsis.
 - Images use `AppContainer.imageHttpClient` (no JSON headers, 16 downloads per host) and Coil's own memory and disk caches, not the API client; `Badge` uses `AsyncImage` with an `onState` flag, not `SubcomposeAsyncImage`.
 - Player recent form (`PlayerRepository.recentForm`, `playerMatchForm`) reads the scorecards of the last finished matches of the team the player was last seen with; unknown team means no form section.
+- Fan community (`feature/community`, `core/data/Community.kt`, `community/FirestoreCommunityBackend.kt`): username only, one feed per followed team (max 5, enforced in `FavouritesRepository.toggle`) plus All fans, opinions and polls, one post per 24 h, everything expires after 24 h. Security rules live in `firebase/firestore.rules` and must be pasted into the console after any change. Tests use `UnavailableCommunityBackend` (UI) or `FakeCommunityBackend` (data); Robolectric never touches Firebase.
+- The Google Services plugin is applied only when `app/google-services.json` exists (CI builds without it), and is skipped for debug while the file has no `com.criczy.app.debug` client. A worktree needs the file copied in by hand.
 - CI: `.github/workflows/checks.yml` runs tests, lint and a release build on every push and keeps the APK as the `criczy-release-apk` artifact.
 - Pushing needs the Claude GitHub App to have write access to `Sgoldiy/criczy-`. A 403 on push is a permission problem for the owner to fix, not something to retry.
 

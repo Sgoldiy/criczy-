@@ -1,6 +1,7 @@
 package com.criczy.app.core.data
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -60,6 +61,9 @@ interface FavouriteDao {
     @Query("SELECT EXISTS(SELECT 1 FROM favourites WHERE type = :type AND refId = :refId)")
     fun observeIs(type: String, refId: Int): Flow<Boolean>
 
+    @Query("SELECT COUNT(*) FROM favourites WHERE type = :type")
+    suspend fun count(type: String): Int
+
     @Query("SELECT EXISTS(SELECT 1 FROM favourites WHERE type = :type AND refId = :refId)")
     suspend fun exists(type: String, refId: Int): Boolean
 
@@ -98,14 +102,19 @@ interface AlertStateDao {
 }
 
 @Database(
-    entities = [FavouriteEntity::class, SeenPlayerEntity::class, AlertStateEntity::class],
-    version = 1,
+    entities = [
+        FavouriteEntity::class, SeenPlayerEntity::class, AlertStateEntity::class,
+        CommunityPostEntity::class, CommunityVoteEntity::class, BlockedAuthorEntity::class, CommunityProfileEntity::class,
+    ],
+    version = 2,
     exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
 )
 abstract class CriczyDatabase : RoomDatabase() {
     abstract fun favourites(): FavouriteDao
     abstract fun seenPlayers(): SeenPlayerDao
     abstract fun alertState(): AlertStateDao
+    abstract fun community(): CommunityDao
 
     companion object {
         fun create(context: Context): CriczyDatabase =

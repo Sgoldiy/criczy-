@@ -7,6 +7,18 @@ plugins {
     alias(libs.plugins.roborazzi)
 }
 
+// Firebase (fan community) is configured by app/google-services.json, which is never committed.
+// Without it (CI, fresh clones) the plugin is skipped and the community shows as unavailable.
+// Debug builds use the id com.criczy.app.debug. Until that app is also registered in Firebase
+// (and the file downloaded again), debug builds skip Firebase and show no community.
+val googleServices = file("google-services.json")
+if (googleServices.exists()) {
+    apply(plugin = "com.google.gms.google-services")
+    if (!googleServices.readText().contains("\"com.criczy.app.debug\"")) {
+        tasks.matching { it.name == "processDebugGoogleServices" }.configureEach { enabled = false }
+    }
+}
+
 // Release signing is read from keystore.properties, which is never committed.
 // Without it, release builds are produced unsigned-by-you (debug-signed) for local testing only.
 val keystoreProperties = Properties().apply {
@@ -105,6 +117,10 @@ dependencies {
     implementation(libs.androidx.glance.material3)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
+    implementation(libs.kotlinx.coroutines.play.services)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

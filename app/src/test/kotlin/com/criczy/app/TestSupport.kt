@@ -63,7 +63,10 @@ object FixtureServer {
 /** Application used under Robolectric: fixture-backed data, in-memory database, no background work. */
 class TestCriczyApp : CriczyApp() {
     override fun createContainer(): AppContainer =
-        AppContainer(this, remoteOverride = FixtureServer.remote(), databaseOverride = CriczyDatabase.inMemory(this))
+        AppContainer(
+            this, remoteOverride = FixtureServer.remote(), databaseOverride = CriczyDatabase.inMemory(this),
+            communityOverride = com.criczy.app.core.data.UnavailableCommunityBackend,
+        )
 
     override fun startBackgroundWork() = Unit
 }

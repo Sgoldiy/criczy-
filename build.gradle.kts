@@ -10,6 +10,7 @@ plugins {
     alias(libs.plugins.android.library) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.roborazzi) apply false
+    alias(libs.plugins.google.services) apply false
 }
 
 // Shared configuration for the pure Kotlin/JVM modules. They target Java 17 bytecode so the

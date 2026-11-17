@@ -20,7 +20,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
@@ -188,12 +191,24 @@ class FavouritesRepository(
 
     suspend fun snapshot(): List<Favourite> = dao.all().mapNotNull { it.toModel() }
 
-    /** Returns the new state: true if it is now a favourite. */
+    private val limitHits = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    /** Emits when following another team was refused because [Communities.MAX_TEAMS] are followed. */
+    val teamLimitReached: SharedFlow<Unit> = limitHits.asSharedFlow()
+
+    /**
+     * Returns the new state: true if it is now a favourite. Teams are capped at
+     * [Communities.MAX_TEAMS] (one community each); a refused follow returns false.
+     */
     suspend fun toggle(favourite: Favourite): Boolean {
         val exists = dao.exists(favourite.type.name, favourite.id)
         if (exists) {
             dao.delete(favourite.type.name, favourite.id)
         } else {
+            if (favourite.type == FavouriteType.TEAM && dao.count(FavouriteType.TEAM.name) >= Communities.MAX_TEAMS) {
+                limitHits.tryEmit(Unit)
+                return false
+            }
             dao.insert(
                 FavouriteEntity(
                     favourite.type.name, favourite.id, favourite.title, favourite.subtitle,

@@ -1,6 +1,9 @@
 package com.criczy.app.navigation
 
 import android.content.ActivityNotFoundException
+import android.widget.Toast
+import androidx.compose.runtime.LaunchedEffect
+import com.criczy.app.ui.LocalAppContainer
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -243,6 +246,14 @@ fun CriczyNavHost(navController: NavHostController = rememberNavController()) {
     val onSearch: () -> Unit = { navController.navigate(Routes.SEARCH) }
     val onBack: () -> Unit = { navController.popBackStack() }
     val onUrl: (String) -> Unit = { openUrl(context, it) }
+
+    // Followed teams are capped (one community each); say so wherever the star was tapped.
+    val favourites = LocalAppContainer.current.favourites
+    LaunchedEffect(favourites) {
+        favourites.teamLimitReached.collect {
+            Toast.makeText(context, "You can follow up to 5 teams. Remove one in Favourites first.", Toast.LENGTH_LONG).show()
+        }
+    }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // Phones get a bottom bar; tablets, foldables and landscape get a side rail.

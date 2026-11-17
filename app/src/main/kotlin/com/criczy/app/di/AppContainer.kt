@@ -2,6 +2,9 @@ package com.criczy.app.di
 
 import android.content.Context
 import com.criczy.app.BuildConfig
+import com.criczy.app.community.FirestoreCommunityBackend
+import com.criczy.app.core.data.CommunityBackend
+import com.criczy.app.core.data.CommunityRepository
 import com.criczy.app.core.data.CatalogRepository
 import com.criczy.app.core.data.CriczyDatabase
 import com.criczy.app.core.data.FavouritesRepository
@@ -27,6 +30,7 @@ class AppContainer(
     private val context: Context,
     remoteOverride: CricketRemoteDataSource? = null,
     databaseOverride: CriczyDatabase? = null,
+    communityOverride: CommunityBackend? = null,
 ) {
     val connection = ConnectionMonitor()
 
@@ -64,5 +68,6 @@ class AppContainer(
     val players by lazy { PlayerRepository(remote, database.seenPlayers()) }
     val news by lazy { NewsRepository(remote) }
     val favourites by lazy { FavouritesRepository(database.favourites()) }
+    val community by lazy { CommunityRepository(communityOverride ?: FirestoreCommunityBackend(context), database.community()) }
     val search by lazy { SearchRepository(catalog, matches, database.seenPlayers()) }
 }
