@@ -1,10 +1,5 @@
 package app.criczy.feature.match
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -52,7 +47,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -76,7 +70,6 @@ import app.criczy.ui.format.Formatters
 import app.criczy.ui.theme.ScoreFont
 import app.criczy.ui.theme.cricketColors
 import app.criczy.ui.theme.parseTeamColor
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 data class MatchActions(
@@ -211,7 +204,7 @@ fun MatchScreen(
                             }
                         }
                     }
-                    ScoreEventOverlay(scoreEvent, Modifier.align(Alignment.Center))
+                    ScoreEventOverlay(scoreEvent, data)
                 }
             }
         }
@@ -278,32 +271,6 @@ private fun MatchHeader(detail: MatchDetail) {
 }
 
 /** Brief full-screen flash for a boundary or wicket, the moment it shows up in a refresh. */
-@Composable
-private fun ScoreEventOverlay(event: ScoreEvent?, modifier: Modifier = Modifier) {
-    var shown by remember { mutableStateOf<ScoreEvent?>(null) }
-    LaunchedEffect(event?.id) {
-        if (event != null) {
-            shown = event
-            delay(2200)
-            shown = null
-        }
-    }
-    AnimatedVisibility(shown != null, modifier, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
-        val current = shown ?: event ?: return@AnimatedVisibility
-        val (label, color) = when (current.type) {
-            ScoreEventType.FOUR -> "FOUR" to cricketColors.four
-            ScoreEventType.SIX -> "SIX" to cricketColors.six
-            ScoreEventType.WICKET -> "WICKET" to cricketColors.wicket
-        }
-        Text(
-            label,
-            modifier = Modifier.clip(MaterialTheme.shapes.large).background(color).padding(horizontal = 36.dp, vertical = 14.dp)
-                .semantics { liveRegion = LiveRegionMode.Assertive },
-            color = Color.White, fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = 56.sp, textAlign = TextAlign.Center,
-        )
-    }
-}
-
 @Composable
 internal fun TabEmpty(title: String, body: String) {
     Box(Modifier.fillMaxSize()) { EmptyState(title, body, Modifier.height(260.dp)) }

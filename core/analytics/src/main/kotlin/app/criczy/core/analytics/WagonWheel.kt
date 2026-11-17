@@ -34,6 +34,10 @@ data class ShotPoint(
     val isWicket: Boolean,
     val batterId: Int,
     val bowlerId: Int,
+    /** The provider recorded the shot as hit in the air, controlled or not. */
+    val inTheAir: Boolean = false,
+    /** Provider angle, unchanged; with [battingHand] it places field labels for this batter. */
+    val battingHand: String? = null,
 )
 
 data class ZoneSummary(val zone: FieldZone, val shots: Int, val runs: Int, val fours: Int, val sixes: Int)
@@ -71,6 +75,15 @@ object WagonWheel {
         return if (isLeftHander(battingHand)) ((180 - a) % 360 + 360) % 360 else a
     }
 
+    /**
+     * Where the middle of [zone] is drawn, in the same screen degrees as [point] uses
+     * (0° to the left of the batter, 90° down the screen behind the stumps).
+     */
+    fun screenAngleOf(zone: FieldZone, battingHand: String?): Float {
+        val normalised = zonesByOctant.indexOf(zone) * 45f + 22.5f
+        return if (isLeftHander(battingHand)) ((180f - normalised) % 360f + 360f) % 360f else normalised
+    }
+
     fun zoneOf(angle: Int, battingHand: String?): FieldZone =
         zonesByOctant[normalisedAngle(angle, battingHand) / 45]
 
@@ -91,6 +104,8 @@ object WagonWheel {
             isWicket = ball.isWicket,
             batterId = ball.batterId,
             bowlerId = ball.bowlerId,
+            inTheAir = ball.inTheAir,
+            battingHand = ball.battingHand,
         )
     }
 

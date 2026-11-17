@@ -27,6 +27,23 @@ import app.criczy.feature.home.HomeUiState
 import app.criczy.feature.series.shortFormat
 import app.criczy.ui.components.matchDescription
 import kotlinx.coroutines.runBlocking
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertCountEquals
+import app.criczy.core.model.Ball
+import app.criczy.core.model.BallOutcome
+import app.criczy.feature.match.CommentaryTab
+import app.criczy.feature.match.CommentaryUiState
+import app.criczy.feature.match.LatestBall
+import app.criczy.feature.match.MatchActions
+import app.criczy.feature.match.ScoreEvent
+import app.criczy.feature.match.ScoreEventOverlay
+import app.criczy.feature.match.ScoreEventType
+import app.criczy.feature.match.detectBallEvent
 import app.criczy.feature.onboarding.OnboardingScreen
 import app.criczy.feature.settings.PrivacyPolicyScreen
 import app.criczy.feature.settings.SettingsActions
@@ -139,7 +156,10 @@ class ScreensTest {
         compose.screenshot("match-scorecard-phone-dark")
 
         compose.onNodeWithText("Commentary").performClick()
-        compose.awaitText("END OF OVER")
+        compose.awaitText("LAST BALL")
+        // The newest delivery on the full-size ground, with what the scorers recorded about it.
+        compose.onNodeWithText("LAST BALL").assertIsDisplayed()
+        compose.onNode(hasContentDescription("Ground view", substring = true)).assertIsDisplayed()
         compose.screenshot("match-commentary-phone-dark")
 
         compose.onNodeWithText("Analysis").performScrollTo().performClick()
@@ -189,6 +209,19 @@ class ScreensTest {
     }
 
     @Test
+    fun `commentary of a match in play marks the latest ball`() {
+        // Real scorecard and commentary; only the state is set to live, which the fixtures cannot capture.
+        val remote = FixtureServer.remote()
+        val (detail, page) = runBlocking { remote.matchDetail(40644)!! to remote.commentaryPage(40644, inningsNumber = 2) }
+        val live = detail.copy(match = detail.match.copy(state = MatchState.LIVE))
+        val feed = CommentaryUiState(inningsNumber = 2, overs = page.overs.sortedByDescending { it.number }, loading = false)
+        val none = MatchActions({}, {}, {}, {}, {}, {}, { _, _ -> }, {}, {}, {}, {}, {})
+        compose.setCriczyContent(dark = false) { CommentaryTab(live, feed, none) }
+        compose.awaitText("LATEST")
+        compose.screenshot("match-commentary-live-phone-light")
+    }
+
+    @Test
     fun `favouriting a match shows it under favourites`() {
         openFinishedMatch()
         compose.onNodeWithContentDescription("Add to favourites").performClick()
@@ -221,11 +254,64 @@ class ScreensTest {
         )
     }
 
+    private fun fixtureBalls() = runBlocking { FixtureServer.remote().commentaryPage(40644, inningsNumber = 2) }.overs.flatMap { it.balls }
+
+    @Test
+    fun `a new delivery becomes a live event, the first one seen does not`() {
+        val balls = fixtureBalls()
+        val dot = balls.first { it.outcome == BallOutcome.DOT }
+        val four = balls.first { it.outcome == BallOutcome.FOUR }
+        val wicket = balls.first { it.isWicket }
+        val wide = balls.first { it.isWide }
+        fun at(position: Int, ball: Ball, over: Int = 14, innings: Int = 2) = LatestBall(innings, over, position, ball)
+
+        assertEquals(null, detectBallEvent(null, at(1, four)), "opening a match replays nothing")
+        assertEquals(null, detectBallEvent(at(2, dot), at(2, four)), "same delivery")
+        assertEquals(null, detectBallEvent(at(2, dot, innings = 1), at(3, four)), "another innings")
+        assertEquals(null, detectBallEvent(at(1, dot), at(2, dot)), "a dot ball is not an event")
+        assertEquals(ScoreEventType.FOUR, detectBallEvent(at(1, dot), at(2, four))?.type)
+        assertEquals(ScoreEventType.WICKET, detectBallEvent(at(6, dot, over = 13), at(1, wicket))?.type)
+        assertEquals(ScoreEventType.WIDE, detectBallEvent(at(1, dot), at(2, wide))?.type)
+        val noBall = dot.copy(isNoBall = true, teamRuns = 1)
+        assertEquals(ScoreEventType.NO_BALL, detectBallEvent(at(1, dot), at(2, noBall))?.type)
+        assertEquals(ScoreEventType.SIX, detectBallEvent(at(1, dot), at(2, noBall.copy(batterRuns = 6, teamRuns = 7, isBoundary = true)))?.type, "the six matters more than the no-ball")
+        val event = detectBallEvent(at(1, dot), at(2, four))!!
+        assertEquals(four, event.ball)
+        assertEquals(event.id, detectBallEvent(at(1, dot), at(2, four))!!.id, "the same delivery keeps its id")
+    }
+
+    @Test
+    fun `live events animate for four, six, wicket, wide and no ball`() {
+        val balls = fixtureBalls()
+        val dot = balls.first { it.outcome == BallOutcome.DOT }
+        val events = listOf(
+            ScoreEvent(ScoreEventType.FOUR, 1, balls.first { it.outcome == BallOutcome.FOUR }),
+            ScoreEvent(ScoreEventType.SIX, 2, dot.copy(batterRuns = 6, teamRuns = 6, isBoundary = true)),
+            ScoreEvent(ScoreEventType.WICKET, 3, balls.first { it.isWicket }),
+            ScoreEvent(ScoreEventType.WIDE, 4, balls.first { it.isWide }),
+            ScoreEvent(ScoreEventType.NO_BALL, 5, dot.copy(isNoBall = true, teamRuns = 1)),
+        )
+        var event by mutableStateOf<ScoreEvent?>(null)
+        compose.mainClock.autoAdvance = false
+        compose.setCriczyContent { Box(Modifier.fillMaxSize()) { ScoreEventOverlay(event, null) } }
+        events.forEach { e ->
+            compose.runOnIdle { event = e }
+            // With the clock paused, the state change needs one frame before time can advance.
+            compose.waitForIdle()
+            compose.mainClock.advanceTimeByFrame()
+            compose.mainClock.advanceTimeBy(380)
+            compose.onNode(hasContentDescription(e.type.name.replace('_', ' ').lowercase(), substring = true)).assertExists()
+            compose.screenshot("event-${e.type.name.lowercase()}-phone-dark")
+            compose.mainClock.advanceTimeBy(4_000)
+            compose.onAllNodes(hasContentDescription(e.type.name.replace('_', ' ').lowercase(), substring = true)).assertCountEquals(0)
+        }
+    }
+
     @Test
     fun `commentary scrolls past a ball re-bowled after a wide`() {
         openFinishedMatch()
         compose.onNodeWithText("Commentary").performClick()
-        compose.awaitText("END OF OVER")
+        compose.awaitText("LAST BALL")
         // Over 14 has two balls numbered 2 and the feed sends no ball ids; this used to crash the list.
         compose.onAllNodes(hasScrollToNodeAction()).onLast().performScrollToNode(hasText("END OF OVER 13"))
         compose.onNodeWithText("END OF OVER 13").assertIsDisplayed()

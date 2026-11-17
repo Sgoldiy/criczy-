@@ -184,6 +184,18 @@ class AnalyticsTest {
     }
 
     @Test
+    fun `field labels sit where that zone's shots are drawn`() {
+        for (hand in listOf("Right", "Left")) {
+            for (angle in 0 until 360 step 5) {
+                val label = WagonWheel.screenAngleOf(WagonWheel.zoneOf(angle, hand), hand)
+                val gap = ((angle - label) % 360f + 540f) % 360f - 180f
+                assertTrue(kotlin.math.abs(gap) <= 22.5f, "$hand-hander at $angle: label at $label")
+            }
+        }
+        assertTrue(WagonWheel.point(ball(1, 1, 4, angle = 300).copy(inTheAir = true))!!.inTheAir)
+    }
+
+    @Test
     fun `shot points are drawn in ground coordinates`() {
         val straight = WagonWheel.point(ball(1, 1, 6, angle = 270))!!
         assertEquals(0f, straight.x, 0.001f)

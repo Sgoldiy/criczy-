@@ -10,6 +10,7 @@ import app.criczy.core.data.RefreshPolicy
 import app.criczy.core.data.keepLastData
 import app.criczy.core.data.loadOnce
 import app.criczy.core.data.pollingFlow
+import app.criczy.core.model.Ball
 import app.criczy.core.model.Highlight
 import app.criczy.core.model.InningsBallByBall
 import app.criczy.core.model.MatchDetail
@@ -23,11 +24,13 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.runningFold
@@ -38,10 +41,47 @@ import kotlinx.coroutines.launch
 /** The scorecard lookup result; [detail] is null when the provider does not know the match. */
 data class MatchLookup(val detail: MatchDetail?)
 
-enum class ScoreEventType { FOUR, SIX, WICKET }
+enum class ScoreEventType { FOUR, SIX, WICKET, WIDE, NO_BALL }
 
-/** Something worth celebrating between two refreshes. [id] changes for every new event. */
-data class ScoreEvent(val type: ScoreEventType, val id: Long)
+/**
+ * Something worth celebrating between two refreshes. [id] is stable for the same delivery or
+ * score, so the screen can tell a new event from one it has already shown. [ball] is the
+ * delivery itself when it came from the ball-by-ball feed.
+ */
+data class ScoreEvent(val type: ScoreEventType, val id: Long, val ball: Ball? = null)
+
+/** The newest delivery of an innings, with its position so a later one can be recognised. */
+internal data class LatestBall(val innings: Int, val over: Int, val position: Int, val ball: Ball) {
+    val id: Long get() = innings * 1_000_000L + over * 100L + position
+
+    fun isAfter(other: LatestBall) = innings == other.innings && (over > other.over || (over == other.over && position > other.position))
+}
+
+internal fun latestBall(state: CommentaryUiState): LatestBall? {
+    val innings = state.inningsNumber ?: return null
+    val over = state.overs.firstOrNull() ?: return null
+    val ball = over.balls.lastOrNull() ?: return null
+    return LatestBall(innings, over.number, over.balls.size, ball)
+}
+
+/**
+ * Turns a newly bowled delivery into an event. Nothing fires on the first ball seen, so
+ * opening a match never replays what already happened.
+ */
+internal fun detectBallEvent(previous: LatestBall?, current: LatestBall): ScoreEvent? {
+    if (previous == null || !current.isAfter(previous)) return null
+    val ball = current.ball
+    val type = when {
+        ball.isWicket -> ScoreEventType.WICKET
+        // Runs off a no-ball are worth more than the no-ball itself.
+        ball.batterRuns == 6 -> ScoreEventType.SIX
+        ball.batterRuns == 4 && ball.isBoundary -> ScoreEventType.FOUR
+        ball.isNoBall -> ScoreEventType.NO_BALL
+        ball.isWide -> ScoreEventType.WIDE
+        else -> return null
+    }
+    return ScoreEvent(type, current.id, ball)
+}
 
 data class CommentaryUiState(
     val inningsNumber: Int? = null,
@@ -84,13 +124,13 @@ class MatchViewModel(private val matchId: Int, private val container: AppContain
 
     val servingCached: StateFlow<Boolean> = container.connection.servingCached
 
-    val scoreEvent: StateFlow<ScoreEvent?> = detailData
-        .runningFold(Triple<MatchDetail?, ScoreEvent?, Long>(null, null, 0L)) { (previous, _, counter), current ->
-            if (current == null) Triple(previous, null, counter)
-            else Triple(current, detectScoreEvent(previous, current, counter + 1), counter + 1)
+    /** Fallback for matches without ball-by-ball data: events inferred from the score. */
+    private val scoreChangeEvents: Flow<ScoreEvent?> = detailData
+        .runningFold(Pair<MatchDetail?, ScoreEvent?>(null, null)) { (previous, _), current ->
+            if (current == null) previous to null
+            else current to detectScoreEvent(previous, current, current.currentInnings?.let { it.number * 1_000_000L + it.score.wickets * 1_000L + it.score.runs } ?: 0L)
         }
         .map { it.second }
-        .stateIn(viewModelScope, WhileUiVisible, null)
 
     // ---- commentary ----------------------------------------------------------------------
 
@@ -136,6 +176,31 @@ class MatchViewModel(private val matchId: Int, private val container: AppContain
             }
         }
         .stateIn(viewModelScope, WhileUiVisible, CommentaryUiState())
+
+    /** Events from the delivery itself, which is the only source that knows wides and no-balls. */
+    private val ballEvents: Flow<ScoreEvent?> = combine(commentary, detailData) { feed, data ->
+        latestBall(feed)?.takeIf { data != null && data.match.state != MatchState.COMPLETED && it.innings == data.currentInnings?.number }
+    }
+        .runningFold(Pair<LatestBall?, ScoreEvent?>(null, null)) { (previous, _), current ->
+            when {
+                current == null -> previous to null
+                previous == null || current.isAfter(previous) -> current to detectBallEvent(previous, current)
+                else -> previous to null
+            }
+        }
+        .map { it.second }
+
+    /** Holds the last event; the screen shows each [ScoreEvent.id] once. */
+    val scoreEvent: StateFlow<ScoreEvent?> = detailData.map { it?.hasCommentary }.distinctUntilChanged()
+        .flatMapLatest { hasCommentary ->
+            when (hasCommentary) {
+                null -> flowOf(null)
+                true -> ballEvents
+                false -> scoreChangeEvents
+            }
+        }
+        .filterNotNull()
+        .stateIn(viewModelScope, WhileUiVisible, null)
 
     fun selectCommentaryInnings(number: Int) {
         chosenInnings.value = number
