@@ -219,4 +219,33 @@ class AnalyticsTest {
         assertEquals(1, cells.sumOf { it.wickets })
         assertEquals("Good length", cells.first().length)
     }
+
+    @Test
+    fun `batting control counts well timed shots and splits runs by pace and spin`() {
+        val balls = listOf(
+            ball(1, 1, 4, bowler = 9).copy(connection = "Well timed"),
+            ball(1, 2, 0, bowler = 9).copy(connection = "Missed"),
+            ball(1, 3, 0, bowler = 9).copy(connection = "Left"),
+            ball(1, 4, 1, bowler = 9).copy(connection = "Middled"),
+            ball(2, 1, 6, bowler = 8).copy(connection = "Top edge"),
+            ball(2, 2, 0, bowler = 8, wide = true),
+            ball(2, 3, 0, bowler = 8, wicket = true, dismissal = "Caught").copy(connection = "Outside edge"),
+            ball(2, 4, 2, bowler = 8, legBye = true),
+        )
+        val kinds = mapOf(9 to BowlingKindFixture.PACE, 8 to BowlingKindFixture.SPIN)
+        val line = BattingControl.batters(balls) { kinds[it]?.kind }.single()
+        assertEquals(7, line.ballsFaced)
+        assertEquals(5, line.judged)
+        assertEquals(2, line.controlled)
+        assertEquals(40.0, line.controlPercent)
+        assertEquals(Split(5, 4, 0), line.pace)
+        assertEquals(Split(6, 3, 1), line.spin)
+        assertEquals(BowlerKind.SPIN, BattingControl.kindOf("Off Spin"))
+        assertEquals(BowlerKind.SPIN, BattingControl.kindOf("Orthodox"))
+        assertEquals(BowlerKind.PACE, BattingControl.kindOf("Pace"))
+        assertNull(BattingControl.kindOf(""))
+        assertEquals(Split(11, 7, 1), BattingControl.innings(balls) { kinds[it]?.kind }.values.reduce(Split::plus))
+    }
+
+    private enum class BowlingKindFixture(val kind: BowlerKind) { PACE(BowlerKind.PACE), SPIN(BowlerKind.SPIN) }
 }

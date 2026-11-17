@@ -102,4 +102,25 @@ class RetentionTest {
         assertNull(LiveScoreService.pinned.value)
         controller.destroy()
     }
+
+    @Test
+    fun `team page shows the last five results as a form strip`() {
+        val board = runBlocking { FixtureServer.remote().matchBoard() }
+        val team = board.completed.groupBy { it.home }.maxBy { it.value.size }.key
+        val form = com.criczy.app.ui.teamForm(team.id, board.completed)
+        kotlin.test.assertTrue(form.size in 1..5)
+        form.forEach { (m, r) -> if (m.winnerTeamId == team.id) assertEquals(com.criczy.app.ui.FormResult.WIN, r) }
+        var opened: Int? = null
+        compose.setCriczyContent {
+            com.criczy.app.feature.teams.TeamScreen(
+                com.criczy.app.feature.teams.TeamUiState(team, com.criczy.app.core.data.Loadable(board, loading = false), isFavourite = true),
+                onBack = {}, onMatch = { opened = it }, onRetry = {}, onToggleFavourite = {},
+            )
+        }
+        compose.onNodeWithText("FORM").assertExists()
+        val (first, result) = form.first()
+        compose.onNodeWithContentDescription("${first.title}, ${result.label}").performClick()
+        assertEquals(first.id, opened)
+        compose.screenshot("team-form-phone-dark")
+    }
 }

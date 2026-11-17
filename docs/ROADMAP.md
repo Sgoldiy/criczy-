@@ -63,7 +63,7 @@ back; the Analysis tab's line-and-length table stays.
    NZ v IND series. Review chips in the commentary, a reviews list in the summary, a review
    event animation. (`IsAppeal` is set on every ball and `IsPowerPlay` on most, so neither
    is useful.)
-4. **Batting control and pace v spin (M).** `BattingConnectionId` (WellTimed, MisTimed,
+4. **Batting control and pace v spin (M, done 18 Nov 2026 except front/back foot).** `BattingConnectionId` (WellTimed, MisTimed,
    Missed, edges…) gives a control percentage per batter; `BowlingTypeId` (FastSeam, Medium,
    OffSpin, LegSpin, Orthodox, Unorthodox) gives runs and strike rate against pace and spin;
    `BattingFeetId` gives front and back foot splits. For the Analysis tab and player compare.
@@ -73,7 +73,7 @@ back; the Analysis tab's line-and-length table stays.
    partnerships, detected between scorecard refreshes, animated like the ball events.
 7. **Series pages (S).** `Competition.bannerUrl` is unused (banner header); a form column
    (last five results) in points tables; table rows open the team page.
-8. **Team page (M).** Form strip, next match countdown, team news, XI from the last match.
+8. **Team page (M).** Form strip (done 18 Nov 2026), next match countdown, team news, XI from the last match.
 9. **Featured matches (S).** The home endpoint's `featured` list is unused; use it to order
    the top cards when nothing is live.
 10. **Player recent form (done, basic).** Built: last 5 matches from the team's scorecards.

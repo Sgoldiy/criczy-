@@ -1,5 +1,19 @@
 package com.criczy.app.feature.teams
 
+import com.criczy.app.ui.teamForm
+import com.criczy.app.ui.FormResult
+import com.criczy.app.core.model.Match
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.font.FontWeight
+import com.criczy.app.ui.theme.ScoreFont
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -226,6 +240,10 @@ fun TeamScreen(state: TeamUiState, onBack: () -> Unit, onMatch: (Int) -> Unit, o
                             Text("Follow this team to see its matches first and get match alerts.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
+                    val form = team?.let { teamForm(it.id, board.completed) }.orEmpty()
+                    if (form.isNotEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }, key = "form") { FormStrip(form, onMatch) }
+                    }
                     listOf("Live" to board.live, "Upcoming" to board.upcoming.sortedBy { it.start }, "Recent results" to board.completed.sortedByDescending { it.start }).forEach { (title, list) ->
                         if (list.isNotEmpty()) {
                             item(span = { GridItemSpan(maxLineSpan) }, key = title) { Text(title.uppercase(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -237,3 +255,32 @@ fun TeamScreen(state: TeamUiState, onBack: () -> Unit, onMatch: (Int) -> Unit, o
         }
     }
 }
+
+/** The last five results as coloured letters, newest first; each opens its match. */
+@Composable
+private fun FormStrip(form: List<Pair<Match, FormResult>>, onMatch: (Int) -> Unit) {
+    Column {
+        Text("FORM", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            form.forEach { (match, result) ->
+                val color = when (result) {
+                    FormResult.WIN -> cricketColors.six
+                    FormResult.LOSS -> cricketColors.wicket
+                    else -> MaterialTheme.colorScheme.outline
+                }
+                Box(
+                    Modifier.size(36.dp).clip(CircleShape).background(color.copy(alpha = 0.18f)).border(1.5.dp, color, CircleShape)
+                        .clickable(onClickLabel = "Open ${match.title}") { onMatch(match.id) }
+                        .semantics { contentDescription = "${match.title}, ${result.label}" },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(result.letter, fontFamily = ScoreFont, fontWeight = FontWeight.Bold, color = color)
+                }
+            }
+            Spacer(Modifier.width(4.dp))
+            Text("newest first", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+

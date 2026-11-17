@@ -105,3 +105,21 @@ fun suggestedTeams(board: MatchBoard, followed: Set<Int>, limit: Int = 8): List<
         .distinctBy { it.id }
         .filter { it.id !in followed }
         .take(limit)
+
+enum class FormResult(val letter: String, val label: String) { WIN("W", "won"), LOSS("L", "lost"), DRAW("D", "drawn"), NO_RESULT("NR", "no result") }
+
+/** The team's last [count] finished matches, most recent first, as W / L / D / NR. */
+fun teamForm(teamId: Int, completed: List<Match>, count: Int = 5): List<Pair<Match, FormResult>> =
+    completed.filter { (it.home.id == teamId || it.away.id == teamId) && it.state == MatchState.COMPLETED }
+        .sortedByDescending { it.start }
+        .take(count)
+        .map { m ->
+            val status = m.statusText.orEmpty().lowercase()
+            m to when {
+                m.winnerTeamId == teamId -> FormResult.WIN
+                m.winnerTeamId != null -> FormResult.LOSS
+                "draw" in status || "tied" in status || "tie" in status.split(' ') -> FormResult.DRAW
+                else -> FormResult.NO_RESULT
+            }
+        }
+

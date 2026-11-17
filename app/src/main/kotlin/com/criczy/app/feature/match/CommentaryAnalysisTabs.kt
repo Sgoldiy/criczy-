@@ -1,5 +1,10 @@
 package com.criczy.app.feature.match
 
+import com.criczy.app.core.analytics.BattingControl
+import com.criczy.app.core.analytics.BowlerKind
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
@@ -686,6 +691,51 @@ internal fun AnalysisTab(detail: MatchDetail, analysis: Loadable<Map<Int, Inning
                             StatCell("Dot ball %", Formatters.oneDecimal(scoring.dotPercent))
                             StatCell("Runs in boundaries %", Formatters.oneDecimal(scoring.boundaryPercent))
                             StatCell("Extras", scoring.extras.toString())
+                        }
+                    }
+                }
+            }
+            val kind: (Int) -> BowlerKind? = { id -> BattingControl.kindOf(detail.player(id)?.bowlingType) }
+            val control = BattingControl.batters(innings.balls, kind).filter { it.ballsFaced >= 6 }
+            if (control.any { it.controlPercent != null } || control.any { it.pace.balls + it.spin.balls > 0 }) {
+                item {
+                    val sides = BattingControl.innings(innings.balls, kind)
+                    Panel {
+                        Column(Modifier.padding(bottom = 12.dp)) {
+                            PanelTitle("Control, pace v spin", "well-timed shots · runs (balls)")
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                listOf(BowlerKind.PACE to "v Pace", BowlerKind.SPIN to "v Spin").forEach { (k, title) ->
+                                    val split = sides.getValue(k)
+                                    StatCell(title, if (split.balls == 0) "–" else "${split.runs}/${split.wickets}")
+                                    StatCell("SR", if (split.balls == 0) "–" else Formatters.oneDecimal(split.strikeRate))
+                                }
+                            }
+                            control.forEach { line ->
+                                Row(
+                                    Modifier.padding(horizontal = 14.dp, vertical = 5.dp)
+                                        .semantics(mergeDescendants = true) { contentDescription = "${name(line.batterId)}: control ${line.controlPercent?.let { Formatters.oneDecimal(it) + " percent" } ?: "not tracked"}" },
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(name(line.batterId), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(
+                                            listOfNotNull(
+                                                line.pace.takeIf { it.balls > 0 }?.let { "Pace ${it.runs} (${it.balls})" },
+                                                line.spin.takeIf { it.balls > 0 }?.let { "Spin ${it.runs} (${it.balls})" },
+                                            ).joinToString(" · ").ifEmpty { "${line.ballsFaced} balls" },
+                                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    val pct = line.controlPercent
+                                    if (pct != null) {
+                                        Box(Modifier.width(64.dp).height(6.dp).clip(RoundedCornerShape(3.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+                                            Box(Modifier.fillMaxWidth((pct / 100).toFloat()).fillMaxHeight().background(cricketColors.accent))
+                                        }
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("${Formatters.oneDecimal(pct)}%", fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = 17.sp, modifier = Modifier.widthIn(min = 52.dp))
+                                    }
+                                }
+                            }
                         }
                     }
                 }

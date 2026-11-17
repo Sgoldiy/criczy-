@@ -6,7 +6,7 @@ Read this before exploring. It records what is already known so it does not need
 
 Android cricket app (Kotlin, Jetpack Compose, Material 3) that replaces the owner's older app, Cricpeak (`Sgoldiy/CRICSCORE`, package `com.cricpeak.scorelive`). Do not modify that repository. Its audit is in `docs/CRICPEAK_AUDIT.md`; there is no need to read its code again.
 
-Status: feature-complete for v1.0.0 plus the fan community, 140 test runs passing (core:data tests run for debug and release), lint clean, release APK and AAB build. Never run on a real device or emulator.
+Status: feature-complete for v1.0.0 plus the fan community, match-day features, team picker, pinned live score and batting control; 170+ test runs passing (core:data tests run for debug and release), lint clean, release APK and AAB build. Never run on a real device or emulator.
 
 ## Decisions already made by the owner (do not re-ask)
 
