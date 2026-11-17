@@ -14,6 +14,8 @@ import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.test.core.app.ApplicationProvider
 import app.criczy.core.data.Favourite
@@ -779,7 +781,9 @@ class ScreensTest {
         compose.onNode(hasSetTextAction()).performTextInput("Jones")
         compose.awaitText("Amy Jones")
         compose.screenshot("search-player-phone-dark")
-        compose.onNodeWithText("Amy Jones").performClick()
+        // Click through semantics, not a touch: a synthetic tap on the result was sometimes lost.
+        compose.waitForIdle()
+        compose.onNodeWithText("Amy Jones").performSemanticsAction(SemanticsActions.OnClick)
         // The player title is in capitals, which the search row is not.
         compose.waitUntil(10_000) { listOf("PLAYER", "AMY JONES").any { compose.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty() } }
     }
