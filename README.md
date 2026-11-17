@@ -54,6 +54,7 @@ Dependencies point one way: `app → core:data → core:network / core:analytics
 
 ## Documentation
 
+- [CLAUDE.md](CLAUDE.md) — short working notes loaded automatically by Claude Code: setup, commands, decisions and known pitfalls
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — how the pieces fit and how to add a feature or change provider
 - [docs/API.md](docs/API.md) — every endpoint, and what the data cannot support
 - [docs/TESTING.md](docs/TESTING.md) — what is tested, how, and what is not
