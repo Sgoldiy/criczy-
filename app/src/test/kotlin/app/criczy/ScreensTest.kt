@@ -19,7 +19,14 @@ import androidx.test.core.app.ApplicationProvider
 import app.criczy.core.data.Favourite
 import app.criczy.core.data.FavouriteType
 import app.criczy.core.data.UserPreferences
+import app.criczy.core.data.Loadable
+import app.criczy.core.model.MatchState
 import app.criczy.feature.favourites.FavouritesScreen
+import app.criczy.feature.home.HomeScreen
+import app.criczy.feature.home.HomeUiState
+import app.criczy.feature.series.shortFormat
+import app.criczy.ui.components.matchDescription
+import kotlinx.coroutines.runBlocking
 import app.criczy.feature.onboarding.OnboardingScreen
 import app.criczy.feature.settings.PrivacyPolicyScreen
 import app.criczy.feature.settings.SettingsActions
@@ -190,6 +197,38 @@ class ScreensTest {
         compose.onNodeWithText("Favourites").performClick()
         compose.awaitText("Sydney Thunder Women v Melbourne Stars Women")
         compose.screenshot("favourites-phone-dark")
+    }
+
+    @Test
+    fun `featured live cards are all the same size`() {
+        val board = runBlocking { FixtureServer.remote().matchBoard() }
+        // One card with two innings a side and a long status, one where a side has not batted.
+        val busy = board.live.first { it.id == 41015 }.copy(state = MatchState.LIVE)
+        val quiet = board.live.first { it.id != 41015 }.let { m -> m.copy(state = MatchState.LIVE, statusText = "Lunch", innings = m.innings.take(1)) }
+        compose.setCriczyContent {
+            HomeScreen(HomeUiState(board = Loadable(data = board, loading = false), live = listOf(busy, quiet)), {}, {}, {}, {})
+        }
+        compose.screenshot("home-featured-phone-dark")
+        val cards = listOf(busy, quiet).map { compose.onNode(hasContentDescription(matchDescription(it))).fetchSemanticsNode().size }
+        assertEquals(cards[0], cards[1])
+    }
+
+    @Test
+    fun `series format tags are short`() {
+        assertEquals(
+            listOf("TEST", "TEST", "ODI", "ODI", "T20I", "T20I", "T20I", "T20", "ONE-DAY", "THE HUNDRED"),
+            listOf("Test", "Women's Tests", "ODI", "Women's One-day internationals", "T20 International", "T20 Intl", "Women's Twenty20 internationals", "T20", "One day", "The Hundred").map(::shortFormat),
+        )
+    }
+
+    @Test
+    fun `commentary scrolls past a ball re-bowled after a wide`() {
+        openFinishedMatch()
+        compose.onNodeWithText("Commentary").performClick()
+        compose.awaitText("END OF OVER")
+        // Over 14 has two balls numbered 2 and the feed sends no ball ids; this used to crash the list.
+        compose.onAllNodes(hasScrollToNodeAction()).onLast().performScrollToNode(hasText("END OF OVER 13"))
+        compose.onNodeWithText("END OF OVER 13").assertIsDisplayed()
     }
 
     @Test

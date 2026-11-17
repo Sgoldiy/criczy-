@@ -120,6 +120,26 @@ class CricketAuRemoteDataSourceTest {
     }
 
     @Test
+    fun `a fixture listed in two buckets is kept once`() = runTest {
+        val fixture = """{"Id":7,"HomeTeam":{"Id":1},"AwayTeam":{"Id":2}}"""
+        server.enqueue(MockResponse().setBody("""{"InProgressFixtures":[$fixture],"UpcomingFixtures":[$fixture],"CompletedFixtures":[$fixture,$fixture]}"""))
+        val board = source.matchBoard()
+        assertEquals(listOf(7), board.all.map { it.id })
+        assertEquals(1, board.live.size)
+    }
+
+    @Test
+    fun `a ball re-bowled after a wide keeps its place in the over`() = runTest {
+        enqueue("comments_mobile.json")
+        val over = source.commentaryPage(40644, inningsNumber = 2).overs.first { it.number == 14 }
+        // The mobile feed has no ball ids and both deliveries are numbered 2.
+        val pair = over.balls.filter { it.ballNumber == 2 }
+        assertEquals(2, pair.size)
+        assertTrue(pair.all { it.id == 0L })
+        assertTrue(pair[0].time!! < pair[1].time!!, "bowled order")
+    }
+
+    @Test
     fun `commentary page reports the cursor for older overs`() = runTest {
         enqueue("comments_mobile.json")
         val page = source.commentaryPage(40644, inningsNumber = 2)

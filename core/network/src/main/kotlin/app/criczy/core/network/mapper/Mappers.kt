@@ -206,11 +206,15 @@ internal fun FixtureDto.toModel(): Match {
     )
 }
 
-internal fun FixturesDto.toModel(): MatchBoard = MatchBoard(
-    live = inProgress.map { it.toModel() },
-    upcoming = upcoming.map { it.toModel() },
-    completed = completed.map { it.toModel() },
-)
+internal fun FixturesDto.toModel(): MatchBoard {
+    // A fixture can be listed twice while it moves between buckets. Screens key list items by
+    // match id, so each match is kept once, in the most advanced bucket that has it.
+    val seen = HashSet<Int>()
+    fun List<FixtureDto>.unique() = map { it.toModel() }.filter { seen.add(it.id) }
+    val live = inProgress.unique()
+    val completed = completed.unique()
+    return MatchBoard(live = live, upcoming = upcoming.unique(), completed = completed)
+}
 
 private fun roleOf(type: String, isWicketKeeper: Boolean): PlayerRole {
     val text = type.lowercase()
@@ -386,7 +390,8 @@ internal fun OverDto.toModel(): Over = Over(
     inningsRuns = totalInningRuns,
     inningsWickets = totalInningWickets,
     runRate = runRate,
-    balls = balls.sortedBy { it.ballNumber }.map { it.toModel(overNumber) },
+    // A ball re-bowled after a wide or no-ball repeats its number; the time keeps them in order.
+    balls = balls.sortedWith(compareBy({ it.ballNumber }, { it.ballDateTime })).map { it.toModel(overNumber) },
 )
 
 internal fun InningsDto.toBallByBall(matchId: Int): InningsBallByBall {

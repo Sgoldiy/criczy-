@@ -195,7 +195,7 @@ fun MatchScreen(
                             }
                         }
                         HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 0) { page ->
-                            when (tabs[page]) {
+                            when (tabs.getOrNull(page) ?: return@HorizontalPager) {
                                 MatchTab.SUMMARY -> SummaryTab(data, commentary, actions)
                                 MatchTab.SCORECARD -> ScorecardTab(data, actions.onPlayer)
                                 MatchTab.COMMENTARY -> CommentaryTab(data, commentary, actions)

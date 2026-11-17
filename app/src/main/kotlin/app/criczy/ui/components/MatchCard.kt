@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
@@ -164,8 +165,10 @@ fun FeaturedMatchCard(match: Match, onClick: () -> Unit, modifier: Modifier = Mo
             .semantics(mergeDescendants = true) { contentDescription = description }
             .padding(16.dp),
     ) {
+        // Every row has a fixed minimum height and the status always takes two lines, so cards
+        // side by side in the pager are the same size whatever the score or status says.
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.heightIn(min = 24.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     match.competition.name, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.8f),
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
@@ -174,12 +177,12 @@ fun FeaturedMatchCard(match: Match, onClick: () -> Unit, modifier: Modifier = Mo
             }
             for (team in listOf(match.home, match.away)) {
                 val scores = match.inningsFor(team.id)
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
                     Badge(team.shortName, team.logoUrl, team.colorHex, size = 36.dp)
                     Spacer(Modifier.width(10.dp))
-                    Text(team.shortName, fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = 26.sp, color = Color.White, modifier = Modifier.weight(1f))
+                    Text(team.shortName, fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = 26.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     if (scores.isNotEmpty()) {
-                        Text(scores.joinToString(" & ") { it.scoreText }, fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = 30.sp, color = Color.White)
+                        Text(scores.joinToString(" & ") { it.scoreText }, fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = 30.sp, color = Color.White, maxLines = 1)
                         Spacer(Modifier.width(6.dp))
                         Text("(${scores.last().overs})", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.75f))
                     } else {
@@ -189,7 +192,7 @@ fun FeaturedMatchCard(match: Match, onClick: () -> Unit, modifier: Modifier = Mo
             }
             Text(
                 Formatters.statusLine(match), style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.9f),
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
         }
     }

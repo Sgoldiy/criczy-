@@ -1,5 +1,6 @@
 package app.criczy.feature.series
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -19,6 +21,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Star
@@ -47,6 +50,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -157,9 +161,9 @@ fun SeriesListScreen(
                         listOf("Happening now" to current, "Coming up" to upcoming, "Recently finished" to finished).forEach { (title, list) ->
                             if (list.isNotEmpty()) {
                                 item(span = { GridItemSpan(maxLineSpan) }, key = title) {
-                                    Text(title.uppercase(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
+                                    Text("${title.uppercase()} · ${list.size}", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
                                 }
-                                items(list, key = { it.id }) { CompetitionRow(it) { onCompetition(it.id, it.name) } }
+                                items(list, key = { it.id }) { CompetitionRow(it, inProgress = list === current) { onCompetition(it.id, it.name) } }
                             }
                         }
                         if (shown.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { EmptyState("No series", "No series match this filter.") }
@@ -170,17 +174,47 @@ fun SeriesListScreen(
     }
 }
 
+/** The feed's long names ("Women's Twenty20 internationals") as the short tag a card has room for. */
+internal fun shortFormat(label: String): String {
+    val text = label.lowercase()
+    val international = "international" in text || "intl" in text
+    return when {
+        "test" in text -> "TEST"
+        "odi" in text || ("one" in text && international) -> "ODI"
+        "t20" in text || "twenty20" in text -> if (international) "T20I" else "T20"
+        "one" in text -> "ONE-DAY"
+        else -> label.uppercase()
+    }
+}
+
+/** One series. Every card is the same height, with the format in the top-right corner. */
 @Composable
-private fun CompetitionRow(competition: Competition, onClick: () -> Unit) {
-    Panel(Modifier.clickable(onClickLabel = "Open series", onClick = onClick)) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun CompetitionRow(competition: Competition, inProgress: Boolean, onClick: () -> Unit) {
+    Panel(Modifier.clip(MaterialTheme.shapes.medium).clickable(onClickLabel = "Open series", onClick = onClick)) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
             Badge(competition.name.filter { it.isUpperCase() || it.isDigit() }.take(3).ifBlank { competition.name }, competition.logoUrl, null, size = 44.dp)
             Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(competition.name, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(Formatters.dateRange(competition.start, competition.end) ?: "Dates to be confirmed", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.Top) {
+                    // Two lines are always reserved so the date sits in the same place on every card.
+                    Text(competition.name, style = MaterialTheme.typography.titleSmall, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    competition.formatLabel?.let {
+                        Spacer(Modifier.width(8.dp))
+                        Pill(shortFormat(it))
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (inProgress) {
+                        Box(Modifier.size(6.dp).background(cricketColors.live, CircleShape))
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Text(
+                        Formatters.dateRange(competition.start, competition.end) ?: "Dates to be confirmed",
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
-            competition.formatLabel?.let { Pill(it.uppercase()) }
         }
     }
 }

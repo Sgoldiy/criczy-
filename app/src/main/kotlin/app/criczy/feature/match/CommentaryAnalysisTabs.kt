@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -81,8 +80,11 @@ internal fun CommentaryTab(detail: MatchDetail, state: CommentaryUiState, action
                     if (over.isComplete || over != state.overs.first()) {
                         item(key = "over-${over.number}") { OverSummaryRow(detail, over) }
                     }
-                    items(over.balls.asReversed(), key = { "ball-${over.number}-${it.ballNumber}-${it.id}" }) { ball ->
-                        BallRow(detail, ball)
+                    // Keyed by position in the over: the feed sends no ball id, and a ball re-bowled
+                    // after a wide or no-ball repeats its number, so neither is unique.
+                    val last = over.balls.lastIndex
+                    items(over.balls.size, key = { "ball-${over.number}-${last - it}" }) { index ->
+                        BallRow(detail, over.balls[last - index])
                     }
                 }
                 if (state.canLoadOlder) {
@@ -179,9 +181,9 @@ internal fun AnalysisTab(detail: MatchDetail, analysis: Loadable<Map<Int, Inning
     val palette = listOf(cricketColors.accent, cricketColors.four, cricketColors.six, cricketColors.extra)
     fun colorFor(number: Int, teamId: Int) = if (data.size <= 2) {
         parseTeamColor(detail.match.team(teamId)?.colorHex)?.takeIf { data.values.map { i -> detail.match.team(i.battingTeamId)?.colorHex }.distinct().size == data.size }
-            ?: palette[(number - 1) % palette.size]
+            ?: palette[(number - 1).mod(palette.size)]
     } else {
-        palette[(number - 1) % palette.size]
+        palette[(number - 1).mod(palette.size)]
     }
     fun label(i: InningsBallByBall): String {
         val team = detail.match.team(i.battingTeamId)?.shortName ?: "Inns"

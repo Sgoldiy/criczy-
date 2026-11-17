@@ -226,7 +226,7 @@ private fun LiveTab(state: HomeUiState, onMatch: (Int) -> Unit) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 val pager = rememberPagerState { inPlay.size }
                 HorizontalPager(pager, pageSpacing = 12.dp, contentPadding = PaddingValues(end = if (inPlay.size > 1) 36.dp else 0.dp)) { index ->
-                    val match = inPlay[index]
+                    val match = inPlay.getOrNull(index) ?: return@HorizontalPager
                     FeaturedMatchCard(match, onClick = { onMatch(match.id) }, modifier = Modifier.fillMaxWidth())
                 }
             }

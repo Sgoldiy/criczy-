@@ -5,6 +5,25 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -29,9 +48,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -84,12 +105,51 @@ private fun NavHostController.toTopLevel(route: String) = navigate(route) {
     restoreState = true
 }
 
+/** Outlined and filled icons cross-fade, and the selected one lifts slightly. */
+@Composable
+private fun TopLevelIcon(item: TopLevel, selected: Boolean) {
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1.12f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
+        label = "navIconScale",
+    )
+    Crossfade(selected, animationSpec = tween(TAB_FADE_MS), label = "navIcon") { isSelected ->
+        Icon(
+            if (isSelected) item.selectedIcon else item.icon, contentDescription = null,
+            modifier = Modifier.graphicsLayer { scaleX = scale; scaleY = scale },
+        )
+    }
+}
+
+// Screen transitions. Switching tabs fades through, the way the bottom bar suggests; opening a
+// detail screen slides it in a short distance from the side and back out again.
+private const val TAB_FADE_MS = 200
+private const val PUSH_MS = 260
+
+private typealias Transition = AnimatedContentTransitionScope<NavBackStackEntry>
+
+private fun Transition.isTabSwitch() =
+    initialState.destination.route in Routes.topLevel && targetState.destination.route in Routes.topLevel
+
+private fun Transition.enter(forward: Boolean): EnterTransition = when {
+    isTabSwitch() -> fadeIn(tween(TAB_FADE_MS, delayMillis = 60)) + scaleIn(tween(TAB_FADE_MS, delayMillis = 60, easing = FastOutSlowInEasing), initialScale = 0.98f)
+    forward -> fadeIn(tween(PUSH_MS)) + slideInHorizontally(tween(PUSH_MS, easing = FastOutSlowInEasing)) { it / 8 }
+    else -> fadeIn(tween(PUSH_MS))
+}
+
+private fun Transition.exit(forward: Boolean): ExitTransition = when {
+    isTabSwitch() -> fadeOut(tween(90))
+    forward -> fadeOut(tween(PUSH_MS / 2))
+    else -> fadeOut(tween(PUSH_MS / 2)) + slideOutHorizontally(tween(PUSH_MS, easing = FastOutSlowInEasing)) { it / 8 }
+}
+
 @Composable
 fun CriczyNavHost(navController: NavHostController = rememberNavController()) {
     val context = LocalContext.current
     val entry by navController.currentBackStackEntryAsState()
     val current = entry?.destination?.route
-    val showBars = current in Routes.topLevel
+    // Null only before the first destination is set, which is a top-level one.
+    val showBars = current == null || current in Routes.topLevel
 
     val onMatch: (Int) -> Unit = { navController.navigate(Routes.match(it)) }
     val onTeam: (Int) -> Unit = { navController.navigate(Routes.team(it)) }
@@ -104,13 +164,18 @@ fun CriczyNavHost(navController: NavHostController = rememberNavController()) {
         val useRail = maxWidth >= 600.dp
         Scaffold(
             bottomBar = {
-                if (showBars && !useRail) {
+                // The bar slides away under detail screens instead of vanishing.
+                AnimatedVisibility(
+                    visible = showBars && !useRail,
+                    enter = expandVertically(tween(PUSH_MS)) + fadeIn(tween(PUSH_MS)),
+                    exit = shrinkVertically(tween(PUSH_MS)) + fadeOut(tween(PUSH_MS / 2)),
+                ) {
                     NavigationBar {
                         destinations.forEach { item ->
                             NavigationBarItem(
                                 selected = current == item.route,
                                 onClick = { navController.toTopLevel(item.route) },
-                                icon = { Icon(if (current == item.route) item.selectedIcon else item.icon, contentDescription = null) },
+                                icon = { TopLevelIcon(item, current == item.route) },
                                 label = { Text(item.label) },
                             )
                         }
@@ -119,20 +184,30 @@ fun CriczyNavHost(navController: NavHostController = rememberNavController()) {
             },
         ) { padding ->
             Row(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
-                if (showBars && useRail) {
+                AnimatedVisibility(
+                    visible = showBars && useRail,
+                    enter = expandHorizontally(tween(PUSH_MS)) + fadeIn(tween(PUSH_MS)),
+                    exit = shrinkHorizontally(tween(PUSH_MS)) + fadeOut(tween(PUSH_MS / 2)),
+                ) {
                     NavigationRail {
                         destinations.forEach { item ->
                             NavigationRailItem(
                                 selected = current == item.route,
                                 onClick = { navController.toTopLevel(item.route) },
-                                icon = { Icon(if (current == item.route) item.selectedIcon else item.icon, contentDescription = null) },
+                                icon = { TopLevelIcon(item, current == item.route) },
                                 label = { Text(item.label) },
                             )
                         }
                     }
                 }
                 Box(Modifier.weight(1f)) {
-                    NavHost(navController, startDestination = Routes.HOME) {
+                    NavHost(
+                        navController, startDestination = Routes.HOME,
+                        enterTransition = { enter(forward = true) },
+                        exitTransition = { exit(forward = true) },
+                        popEnterTransition = { enter(forward = false) },
+                        popExitTransition = { exit(forward = false) },
+                    ) {
                         composable(Routes.HOME) { HomeRoute(onMatch, onSearch) }
                         composable(Routes.SERIES) { SeriesListRoute(onCompetition, onSearch) }
                         composable(Routes.NEWS) { NewsRoute(onUrl) }
