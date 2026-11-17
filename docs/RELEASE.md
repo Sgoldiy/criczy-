@@ -37,7 +37,7 @@ Bump `versionCode` and `versionName` in `app/build.gradle.kts` for every upload.
 
 | | |
 |---|---|
-| Application id | `app.criczy` (debug builds use `app.criczy.debug`) |
+| Application id | `com.criczy.app` (debug builds use `com.criczy.app.debug`) |
 | Min / target / compile SDK | 24 / 36 / 36 |
 | Shrinking | R8 with resource shrinking |
 | Permissions | `INTERNET`, `ACCESS_NETWORK_STATE`, `POST_NOTIFICATIONS`; WorkManager adds `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE` |

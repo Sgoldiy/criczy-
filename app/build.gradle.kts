@@ -15,11 +15,11 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
-    namespace = "app.criczy"
+    namespace = "com.criczy.app"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "app.criczy"
+        applicationId = "com.criczy.app"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

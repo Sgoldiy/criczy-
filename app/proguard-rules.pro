@@ -1,11 +1,11 @@
 # kotlinx.serialization: keep generated serializers for the API DTOs.
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.**
--keepclassmembers class app.criczy.core.network.dto.** {
+-keepclassmembers class com.criczy.app.core.network.dto.** {
     *** Companion;
     kotlinx.serialization.KSerializer serializer(...);
 }
--keep,includedescriptorclasses class app.criczy.core.network.dto.**$$serializer { *; }
+-keep,includedescriptorclasses class com.criczy.app.core.network.dto.**$$serializer { *; }
 
 # Retrofit service interfaces are created reflectively.
 -keep,allowobfuscation,allowshrinking interface retrofit2.Call

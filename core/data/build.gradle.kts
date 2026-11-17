@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "app.criczy.core.data"
+    namespace = "com.criczy.app.core.data"
     compileSdk = 36
 
     defaultConfig {

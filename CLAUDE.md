@@ -13,7 +13,7 @@ Status: feature-complete for v1.0.0, 112 tests passing, lint clean, release APK 
 - Data source stays the cricket.com.au API, kept behind `CricketRemoteDataSource` so it can be swapped.
 - AI (Gemini) and ads (AdMob, rewarded locks) are deferred. Do not add them unless asked.
 - No premium purchases.
-- App name is Criczy, application id `app.criczy`.
+- App name is Criczy, application id `com.criczy.app` (renamed from `app.criczy` on 18 Nov 2026, before any Play upload; packages and source folders match it). Never change it again once published.
 
 ## Layout
 
