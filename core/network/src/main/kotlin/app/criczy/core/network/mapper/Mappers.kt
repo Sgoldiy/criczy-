@@ -380,6 +380,8 @@ private fun BallDto.toModel(overNumber: Int): Ball = Ball(
     bowlingDetail = humanise(bowlingDetailId),
     inTheAir = isAirControlled || isAirNotControlled,
     commentary = comments.sortedBy { it.order }.map { Comment(it.type, it.message.trim(), it.order) },
+    bowlingArm = bowlingHandId.orNullIfBlank(),
+    bowlingFrom = bowlingFromId.orNullIfBlank(),
 )
 
 internal fun OverDto.toModel(): Over = Over(

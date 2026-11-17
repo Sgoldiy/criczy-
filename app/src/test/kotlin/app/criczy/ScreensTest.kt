@@ -163,10 +163,16 @@ class ScreensTest {
 
         compose.onNodeWithText("Commentary").performClick()
         awaitGrounds()
-        // Each delivery has its own ground telling what happened, even when nothing was scored.
-        compose.onNode(hasContentDescription("wicket, Caught · bowler", substring = true)).assertExists()
-        assertTrue(compose.onAllNodes(hasContentDescription("missed, played a drive")).fetchSemanticsNodes().isNotEmpty(), "dot ball says the batter missed")
+        // Each ball ends with a link saying what happened; the ground stays closed until asked for.
+        assertEquals(0, groundsShowing("wicket, Caught · bowler"))
+        compose.onNodeWithText("See shot · WICKET").performClick()
+        compose.waitUntil(5_000) { groundsShowing("wicket, Caught · bowler") == 1 }
         compose.screenshot("match-commentary-phone-dark")
+        // Opening another ball closes the first: one ball at a time.
+        compose.onAllNodes(hasScrollToNodeAction()).onLast().performScrollToNode(hasText("See ball · MISSED"))
+        compose.onAllNodesWithText("See ball · MISSED").onFirst().performClick()
+        compose.waitUntil(5_000) { groundsShowing("missed, played a drive") == 1 && groundsShowing("wicket, Caught · bowler") == 0 }
+        compose.screenshot("match-commentary-open-dot-phone-dark")
 
         compose.onNodeWithText("Analysis").performScrollTo().performClick()
         compose.awaitText("WORM")
@@ -224,6 +230,8 @@ class ScreensTest {
         val none = MatchActions({}, {}, {}, {}, {}, {}, { _, _ -> }, {}, {}, {}, {}, {})
         compose.setCriczyContent(dark = false) { CommentaryTab(live, feed, none) }
         awaitGrounds()
+        compose.onNodeWithText("See shot · WICKET").performClick()
+        compose.waitUntil(5_000) { groundsShowing("wicket, Caught · bowler") == 1 }
         compose.screenshot("match-commentary-live-phone-light")
     }
 
@@ -262,7 +270,30 @@ class ScreensTest {
 
     /** Every ball row has a ground; its description says what happened on that ball. */
     private fun awaitGrounds() =
-        compose.waitUntil(10_000) { compose.onAllNodes(hasContentDescription("wicket, Caught", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("See shot · WICKET").fetchSemanticsNodes().isNotEmpty() }
+
+    private fun groundsShowing(description: String) =
+        compose.onAllNodes(hasContentDescription(description, substring = true)).fetchSemanticsNodes().size
+
+    @Test
+    fun `opening a ball replays it like a broadcast, from the bowler's hand to the shot`() {
+        val four = fixtureBalls().first { it.outcome == BallOutcome.FOUR && it.shotAngle != null && it.length != null }
+        compose.mainClock.autoAdvance = false
+        compose.setCriczyContent {
+            Box(Modifier.fillMaxSize()) { app.criczy.ui.components.BallGround(four, Modifier.size(360.dp), animate = true) }
+        }
+        compose.waitForIdle()
+        compose.mainClock.advanceTimeByFrame()
+        // Close on the pitch: the ball has pitched and is on its way to the batter.
+        compose.mainClock.advanceTimeBy(700)
+        compose.screenshot("ball-replay-1-delivery-phone-dark")
+        // Camera pulling back while the shot runs to the rope.
+        compose.mainClock.advanceTimeBy(500)
+        compose.screenshot("ball-replay-2-shot-phone-dark")
+        compose.mainClock.advanceTimeBy(3_000)
+        compose.screenshot("ball-replay-3-done-phone-dark")
+        assertTrue(groundsShowing("four") == 1)
+    }
 
     @Test
     fun `each ball is told in plain words from what the scorers recorded`() {

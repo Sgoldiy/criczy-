@@ -2,6 +2,10 @@ package app.criczy.ui.components
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import kotlin.math.sin
+import kotlin.math.PI
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -107,29 +111,94 @@ private const val FIELD = 0.9f
 /** Pitch length as a share of the field radius. */
 private const val PITCH = 0.36f
 
+/** How far the replay starts zoomed in on the pitch. */
+private const val ZOOM = 2.4f
+
+// Replay timeline, in milliseconds.
+private const val HOLD = 220f
+private const val DELIVERY = 640f
+private const val CONTACT = HOLD + DELIVERY
+private const val ZOOM_OUT = 700f
+private const val LABEL_IN = 300f
+
+/**
+ * Where the ball pitched, as a share of the pitch from the batter's stumps, from the length the
+ * scorers recorded. Null for a full toss or when no length was recorded: no bounce is drawn.
+ */
+internal fun bounceFraction(length: String?): Float? = when (length?.lowercase()) {
+    "yorker" -> 0.06f
+    "half volley" -> 0.16f
+    "length ball" -> 0.3f
+    "back of a length" -> 0.38f
+    "short" -> 0.46f
+    "half tracker" -> 0.55f
+    else -> null
+}
+
+/** How far the ball passed from the stumps, in pitch widths towards the off side, from the recorded line. */
+internal fun lineOffset(line: String?): Float = when (line?.lowercase()) {
+    "wide" -> 0.75f
+    "outside off" -> 0.32f
+    "off stump" -> 0.12f
+    "leg stump" -> -0.12f
+    "down leg" -> -0.32f
+    "wide down leg" -> -0.75f
+    else -> 0f
+}
+
+/** What the ball does after it reaches the batter. */
+private enum class Follow { SHOT, PAST_BAT, BOWLED, STOP }
+
+private class Timeline(val follow: Follow, distance: Float) {
+    val flight = if (follow == Follow.SHOT) 550f + 450f * distance else 340f
+    val zoomStart = if (follow == Follow.SHOT) CONTACT else CONTACT + flight + 150f
+    val zoomEnd = zoomStart + ZOOM_OUT
+    val labelStart = maxOf(CONTACT + flight, zoomEnd)
+    val end = labelStart + LABEL_IN
+}
+
+private fun phase(ms: Float, start: Float, length: Float) = ((ms - start) / length).coerceIn(0f, 1f)
+
+private fun ease(t: Float) = FastOutSlowInEasing.transform(t)
+
 /**
  * One delivery on a top-down ground, seen from behind the bowler as on a TV broadcast: the
  * batter stands at the upper end of the pitch and the bowler runs in from below, so a
- * right-hander's off side is on the left. Runs are an arrow from the batter in the recorded
- * direction (dashed when the ball went in the air) with a label at its tip; a ball with no
- * runs leaves the ground empty and says what the batter did.
+ * right-hander's off side is on the left.
  *
- * When [animate] is true the arrow grows from the bat and the label pops in; otherwise the
- * ball is drawn as it finished. Animation is read in the draw phase only.
+ * With [animate] the ball plays out like a broadcast analysis replay. The view starts close
+ * on the pitch: the ball leaves the bowler's hand on the side of the stumps they bowled from,
+ * pitches at the recorded length and arrives on the recorded line. Then the camera pulls back
+ * while the shot runs out in its recorded direction (dashed when in the air), or the ball goes
+ * through to the keeper, hits the stumps, or stops at the bat. A label says what happened.
+ * Changing [replayKey] plays it again. Without [animate] the finished picture is drawn.
+ *
+ * All motion is read in the draw phase, so a replay redraws without recomposing.
  */
 @Composable
-fun BallGround(ball: Ball, modifier: Modifier = Modifier, animate: Boolean = false) {
+fun BallGround(ball: Ball, modifier: Modifier = Modifier, animate: Boolean = false, replayKey: Any? = null) {
     val colors = cricketColors
     val scheme = MaterialTheme.colorScheme
     val measurer = rememberTextMeasurer()
     val story = remember(ball) { ballStory(ball) }
     val shot = remember(ball) { if (story.showsShot) WagonWheel.point(ball) else null }
-    val grow = remember(ball) { Animatable(if (animate) 0f else 1f) }
-    val pop = remember(ball) { Animatable(if (animate) 0f else 1f) }
-    LaunchedEffect(ball, animate) {
-        if (!animate) return@LaunchedEffect
-        if (shot != null) grow.animateTo(1f, tween(450 + (400 * shot.distance).toInt(), easing = FastOutSlowInEasing))
-        pop.animateTo(1f, tween(260, easing = FastOutSlowInEasing))
+    val timeline = remember(ball, shot) {
+        val follow = when {
+            shot != null -> Follow.SHOT
+            ball.isWicket && ball.dismissalType?.contains("bowled", ignoreCase = true) == true -> Follow.BOWLED
+            story.headline in setOf("MISSED", "LEFT ALONE", "WIDE") || ball.isBye -> Follow.PAST_BAT
+            else -> Follow.STOP
+        }
+        Timeline(follow, shot?.distance ?: 0f)
+    }
+    val clock = remember(ball) { Animatable(if (animate) 0f else timeline.end) }
+    LaunchedEffect(ball, animate, replayKey) {
+        if (!animate) {
+            clock.snapTo(timeline.end)
+            return@LaunchedEffect
+        }
+        clock.snapTo(0f)
+        clock.animateTo(timeline.end, tween(timeline.end.toInt(), easing = LinearEasing))
     }
 
     val leftHander = ball.battingHand.equals("Left", ignoreCase = true)
@@ -143,15 +212,9 @@ fun BallGround(ball: Ball, modifier: Modifier = Modifier, animate: Boolean = fal
     val rope = if (dark) Color.White.copy(alpha = 0.85f) else Color.White
     val chalk = Color.White.copy(alpha = if (dark) 0.3f else 0.7f)
     val sideColor = if (dark) Color.White.copy(alpha = 0.5f) else Color(0xFF1E3A2B).copy(alpha = 0.6f)
-    val tone = when (story.kind) {
-        BallStoryKind.FOUR -> colors.four
-        BallStoryKind.SIX -> colors.six
-        BallStoryKind.WICKET -> colors.wicket
-        BallStoryKind.RUNS -> colors.accent
-        BallStoryKind.EXTRA -> colors.extra
-        BallStoryKind.DOT -> Color(0xFF263241)
-    }
+    val tone = storyColor(story.kind, forLabel = true)
     val headlineInk = if (story.kind == BallStoryKind.RUNS) Color(0xFF1A1300) else Color.White
+    val wicketRed = colors.wicket
 
     Box(
         modifier
@@ -161,8 +224,12 @@ fun BallGround(ball: Ball, modifier: Modifier = Modifier, animate: Boolean = fal
                 val outer = size.minDimension / 2f
                 val c = Offset(size.width / 2f, size.height / 2f)
                 val r = outer * FIELD
-                val batter = Offset(c.x, c.y - r * PITCH / 2f)
-                val groundClip = Path().apply { addOval(Rect(c, r)) }
+                val length = r * PITCH
+                val w = r * 0.075f
+                val batterY = c.y - length / 2f
+                val bowlerY = c.y + length / 2f
+                val batter = Offset(c.x, batterY)
+                val view = Path().apply { addOval(Rect(c, r + 2.dp.toPx())) }
                 val grassBrush = Brush.radialGradient(listOf(grass, grass, grassEdge), c, r)
                 val dash = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx()))
                 val sideStyle = TextStyle(fontSize = (r * 0.085f).toSp(), fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = sideColor)
@@ -170,6 +237,9 @@ fun BallGround(ball: Ball, modifier: Modifier = Modifier, animate: Boolean = fal
                 val legLabel = measurer.measure("LEG", sideStyle)
                 val headline = measurer.measure(story.headline, TextStyle(fontFamily = ScoreFont, fontWeight = FontWeight.Bold, fontSize = (r * 0.16f).toSp(), letterSpacing = 0.5.sp, color = headlineInk))
                 val detail = story.detail?.let { measurer.measure(it, TextStyle(fontSize = (r * 0.085f).toSp(), fontWeight = FontWeight.Medium, color = headlineInk.copy(alpha = 0.85f))) }
+                // While the camera is on the pitch, the delivery is captioned as on a broadcast.
+                val caption = listOfNotNull(ball.length, ball.line).joinToString(" · ").takeIf { it.isNotEmpty() && animate }
+                    ?.let { measurer.measure(it, TextStyle(fontSize = (r * 0.085f).toSp(), fontWeight = FontWeight.SemiBold, color = Color.White)) }
                 val padX = r * 0.07f
                 val padY = r * 0.035f
                 val chip = Size(
@@ -177,66 +247,156 @@ fun BallGround(ball: Ball, modifier: Modifier = Modifier, animate: Boolean = fal
                     headline.size.height + (detail?.size?.height ?: 0) + padY * 2,
                 )
 
-                // Where the shot ends, measured from the batter to the rope in the recorded direction.
-                // The provider's frame looks from behind the batter; turning it half a circle gives
-                // the view from behind the bowler without swapping off and leg.
+                // The delivery: from the bowler's hand, over or round the wicket, to the batter.
+                val offSign = if (leftHander) 1f else -1f
+                val releaseSign = when {
+                    ball.bowlingArm == null || ball.bowlingFrom == null -> 0f
+                    ball.bowlingArm.equals("Left", true) == ball.bowlingFrom.equals("Round", true) -> -1f
+                    else -> 1f
+                }
+                val release = Offset(c.x + releaseSign * w * 0.35f, bowlerY + w * 0.2f)
+                val arrival = Offset(c.x + offSign * lineOffset(ball.line) * w, batterY)
+                val bounceAt = bounceFraction(ball.length)?.let { 1f - it }
+                val bounce = bounceAt?.let { release + (arrival - release) * it }
+                val keeper = arrival + (arrival - release) * 0.28f
+                val stumps = Offset(c.x, batterY - w * 0.3f)
+                val rebound = arrival + Offset(0f, length * 0.08f)
                 val end: Offset? = shot?.let { s ->
                     shotEnd(s.x, s.y, if (story.kind == BallStoryKind.FOUR || story.kind == BallStoryKind.SIX) 1f else s.distance, batter, c, r)
                 }
+                val labelCentre = labelSpot(batter, end, c, r)
 
                 onDrawBehind {
+                    val ms = clock.value
+                    val zoom = 1f + (ZOOM - 1f) * (1f - ease(phase(ms, timeline.zoomStart, ZOOM_OUT)))
+                    val ballRadius = 2.6.dp.toPx()
+
                     drawCircle(surround, outer, c)
-                    drawCircle(grassBrush, r, c)
-                    clipPath(groundClip) {
-                        val stripeWidth = r / 5f
-                        var x = c.x - r
-                        var i = 0
-                        while (x < c.x + r) {
-                            if (i % 2 == 0) drawRect(stripe, Offset(x, c.y - r), Size(stripeWidth, r * 2))
-                            x += stripeWidth; i++
+                    clipPath(view) {
+                        withTransform({ scale(zoom, zoom, c) }) {
+                            drawCircle(grassBrush, r, c)
+                            val stripeWidth = r / 5f
+                            var x = c.x - r
+                            var i = 0
+                            while (x < c.x + r) {
+                                if (i % 2 == 0) drawRect(stripe, Offset(x, c.y - r), Size(stripeWidth, r * 2))
+                                x += stripeWidth; i++
+                            }
+                            drawCircle(rope, r, c, style = Stroke(2.dp.toPx()))
+                            drawCircle(chalk, r * 0.45f, c, style = Stroke(1.2.dp.toPx(), pathEffect = dash))
+                            val (left, right) = if (leftHander) legLabel to offLabel else offLabel to legLabel
+                            drawText(left, topLeft = Offset(c.x - r * 0.82f, c.y - left.size.height / 2f))
+                            drawText(right, topLeft = Offset(c.x + r * 0.82f - right.size.width, c.y - right.size.height / 2f))
+                            val bowledNow = timeline.follow == Follow.BOWLED && ms >= CONTACT + 120f
+                            drawPitch(c, r, colors.pitch, if (bowledNow) wicketRed else null)
+
+                            // Bowler at the far end.
+                            drawCircle(Color.Black.copy(alpha = 0.35f), 3.6.dp.toPx(), release + Offset(0f, w * 0.9f))
+
+                            // Delivery path and where it pitched.
+                            val d = phase(ms, HOLD, DELIVERY)
+                            val inFlight = release + (arrival - release) * d
+                            drawLine(Color.White.copy(alpha = 0.35f), release, inFlight, 1.2.dp.toPx(), cap = StrokeCap.Round)
+                            if (bounce != null && bounceAt != null && d >= bounceAt) {
+                                drawCircle(Color.White.copy(alpha = 0.85f), 2.2.dp.toPx(), bounce, style = Stroke(1.dp.toPx()))
+                                val ripple = phase(ms, HOLD + DELIVERY * bounceAt, 420f)
+                                if (ripple < 1f) drawCircle(Color.White.copy(alpha = 0.7f * (1f - ripple)), (2.2f + 7f * ripple).dp.toPx(), bounce, style = Stroke(1.2.dp.toPx()))
+                            }
+
+                            // Where the ball is now, with its shadow while it is in the air.
+                            var ballAt = inFlight
+                            var height = 0f
+                            if (ms < CONTACT) {
+                                height = when {
+                                    bounceAt == null -> 0.6f
+                                    d < bounceAt -> 1f - d / bounceAt
+                                    else -> 0.35f * sin(PI.toFloat() * ((d - bounceAt) / (1f - bounceAt)).coerceIn(0f, 1f))
+                                }
+                            } else {
+                                val f = ease(phase(ms, CONTACT, timeline.flight))
+                                when (timeline.follow) {
+                                    Follow.SHOT -> if (end != null) {
+                                        ballAt = arrival + (end - arrival) * f
+                                        height = if (shot?.inTheAir == true) sin(PI.toFloat() * f) else 0f
+                                        val tip = ballAt
+                                        if (story.kind == BallStoryKind.FOUR || story.kind == BallStoryKind.SIX) {
+                                            if (f >= 1f) {
+                                                val angle = Math.toDegrees(atan2((end.y - c.y).toDouble(), (end.x - c.x).toDouble())).toFloat()
+                                                drawArc(tone.copy(alpha = 0.55f), angle - 12f, 24f, false, Offset(c.x - r, c.y - r), Size(r * 2, r * 2), style = Stroke(5.dp.toPx(), cap = StrokeCap.Round))
+                                            }
+                                        }
+                                        drawLine(tone, arrival, tip, 2.6.dp.toPx(), cap = StrokeCap.Round, pathEffect = if (shot?.inTheAir == true) dash else null)
+                                        if (f >= 1f) drawArrowHead(arrival, tip, tone, 2.6.dp.toPx())
+                                    }
+                                    Follow.PAST_BAT -> ballAt = arrival + (keeper - arrival) * f
+                                    Follow.BOWLED -> ballAt = arrival + (stumps - arrival) * ease(phase(ms, CONTACT, 120f))
+                                    Follow.STOP -> ballAt = arrival + (rebound - arrival) * f
+                                }
+                            }
+
+                            // The batter.
+                            drawCircle(Color.Black.copy(alpha = 0.3f), 6.dp.toPx(), batter + Offset(0f, 1.dp.toPx()))
+                            drawCircle(Color.White, 4.5.dp.toPx(), batter)
+
+                            val arrived = timeline.follow == Follow.SHOT && ms >= CONTACT + timeline.flight
+                            if (!arrived || shot?.isWicket == true) {
+                                val lift = 1f + 0.5f * height
+                                drawCircle(Color.Black.copy(alpha = 0.3f), ballRadius, ballAt + Offset(1.5f, 2.5f) * (1f + 3f * height))
+                                drawCircle(Color(0xFFF4F1E8), ballRadius * lift, ballAt)
+                                drawCircle(Color(0xFFB3261E), ballRadius * lift, ballAt, style = Stroke(0.8.dp.toPx()))
+                            }
+                            if (arrived && end != null && shot?.isWicket == true) {
+                                val k = 5.dp.toPx()
+                                drawLine(tone, end + Offset(-k, -k), end + Offset(k, k), 2.5.dp.toPx(), cap = StrokeCap.Round)
+                                drawLine(tone, end + Offset(-k, k), end + Offset(k, -k), 2.5.dp.toPx(), cap = StrokeCap.Round)
+                            }
+                            if (bowledNow) {
+                                val burst = phase(ms, CONTACT + 120f, 450f)
+                                drawCircle(wicketRed.copy(alpha = 0.8f * (1f - burst)), (4f + 12f * burst).dp.toPx(), stumps, style = Stroke(2.dp.toPx()))
+                            }
                         }
                     }
-                    drawCircle(rope, r, c, style = Stroke(2.dp.toPx()))
-                    drawCircle(chalk, r * 0.45f, c, style = Stroke(1.2.dp.toPx(), pathEffect = dash))
-                    // Off and leg sides for this batter, as seen from behind the bowler.
-                    val (left, right) = if (leftHander) legLabel to offLabel else offLabel to legLabel
-                    drawText(left, topLeft = Offset(c.x - r * 0.82f, c.y - left.size.height / 2f))
-                    drawText(right, topLeft = Offset(c.x + r * 0.82f - right.size.width, c.y - right.size.height / 2f))
-                    drawPitch(c, r, colors.pitch)
 
-                    if (end != null && shot != null) {
-                        val t = grow.value
-                        val tip = batter + (end - batter) * t
-                        val width = 2.6.dp.toPx()
-                        if (t >= 1f && (story.kind == BallStoryKind.FOUR || story.kind == BallStoryKind.SIX)) {
-                            val angle = Math.toDegrees(atan2((end.y - c.y).toDouble(), (end.x - c.x).toDouble())).toFloat()
-                            drawArc(tone.copy(alpha = 0.55f), angle - 12f, 24f, false, Offset(c.x - r, c.y - r), Size(r * 2, r * 2), style = Stroke(5.dp.toPx(), cap = StrokeCap.Round))
+                    caption?.let { text ->
+                        val shown = phase(ms, 120f, 220f) * (1f - phase(ms, timeline.zoomStart, 260f))
+                        if (shown > 0f) {
+                            val box = Size(text.size.width + padX * 1.6f, text.size.height + padY * 1.6f)
+                            val topLeft = Offset(c.x - box.width / 2f, c.y + r * 0.74f - box.height / 2f)
+                            drawRoundRect(Color.Black.copy(alpha = 0.55f * shown), topLeft, box, CornerRadius(box.height / 2f))
+                            drawText(text, topLeft = topLeft + Offset(padX * 0.8f, padY * 0.8f), alpha = shown)
                         }
-                        drawLine(tone, batter, tip, width, cap = StrokeCap.Round, pathEffect = if (shot.inTheAir) dash else null)
-                        drawArrowHead(batter, tip, tone, width)
                     }
 
-                    // The batter at the striker's end.
-                    drawCircle(Color.Black.copy(alpha = 0.3f), 6.dp.toPx(), batter + Offset(0f, 1.dp.toPx()))
-                    drawCircle(Color.White, 4.5.dp.toPx(), batter)
-
-                    // Label: at the tip of the arrow, or in the open ground below the pitch.
-                    val p = pop.value
+                    // The label, once the camera has pulled back.
+                    val p = ease(phase(ms, timeline.labelStart, LABEL_IN))
                     if (p > 0f) {
-                        val centre = labelSpot(batter, end, c, r)
                         val scale = 0.85f + 0.15f * p
                         val box = Size(chip.width * scale, chip.height * scale)
-                        val topLeft = centre - Offset(box.width / 2f, box.height / 2f)
+                        val topLeft = labelCentre - Offset(box.width / 2f, box.height / 2f)
                         drawRoundRect(Color.Black.copy(alpha = 0.25f * p), topLeft + Offset(0f, 1.5.dp.toPx()), box, CornerRadius(box.height / 2.4f))
                         drawRoundRect(tone.copy(alpha = p), topLeft, box, CornerRadius(box.height / 2.4f))
                         if (p > 0.6f) {
-                            drawText(headline, topLeft = Offset(centre.x - headline.size.width / 2f, centre.y - chip.height / 2f + padY))
-                            detail?.let { drawText(it, topLeft = Offset(centre.x - it.size.width / 2f, centre.y - chip.height / 2f + padY + headline.size.height)) }
+                            drawText(headline, topLeft = Offset(labelCentre.x - headline.size.width / 2f, labelCentre.y - chip.height / 2f + padY))
+                            detail?.let { drawText(it, topLeft = Offset(labelCentre.x - it.size.width / 2f, labelCentre.y - chip.height / 2f + padY + headline.size.height)) }
                         }
                     }
                 }
             },
     )
+}
+
+/** The colour that goes with each kind of ball, shared by the ground label and the "See shot" link. */
+@Composable
+fun storyColor(kind: BallStoryKind, forLabel: Boolean = false): Color {
+    val colors = cricketColors
+    return when (kind) {
+        BallStoryKind.FOUR -> colors.four
+        BallStoryKind.SIX -> colors.six
+        BallStoryKind.WICKET -> colors.wicket
+        BallStoryKind.RUNS -> colors.accent
+        BallStoryKind.EXTRA -> colors.extra
+        BallStoryKind.DOT -> if (forLabel) Color(0xFF263241) else MaterialTheme.colorScheme.onSurfaceVariant
+    }
 }
 
 /**
@@ -286,7 +446,7 @@ private fun DrawScope.drawArrowHead(from: Offset, tip: Offset, color: Color, wid
     drawLine(color, tip, back - normal * (size * 0.6f), width, cap = StrokeCap.Round)
 }
 
-private fun DrawScope.drawPitch(c: Offset, r: Float, pitch: Color) {
+private fun DrawScope.drawPitch(c: Offset, r: Float, pitch: Color, batterStumps: Color?) {
     val w = r * 0.075f
     val h = r * PITCH
     val top = c.y - h / 2f
@@ -297,7 +457,7 @@ private fun DrawScope.drawPitch(c: Offset, r: Float, pitch: Color) {
     drawLine(crease, Offset(c.x - w * 0.8f, top), Offset(c.x + w * 0.8f, top), line)
     drawLine(crease, Offset(c.x - w * 0.8f, bottom), Offset(c.x + w * 0.8f, bottom), line)
     // Stumps behind the batter at the top, and at the bowler's end below.
-    val stumps = Color(0xFF5B4630)
-    drawLine(stumps, Offset(c.x - w * 0.25f, top - w * 0.3f), Offset(c.x + w * 0.25f, top - w * 0.3f), 2.dp.toPx(), cap = StrokeCap.Round)
-    drawLine(stumps, Offset(c.x - w * 0.25f, bottom + w * 0.3f), Offset(c.x + w * 0.25f, bottom + w * 0.3f), 2.dp.toPx(), cap = StrokeCap.Round)
+    val wood = Color(0xFF5B4630)
+    drawLine(batterStumps ?: wood, Offset(c.x - w * 0.25f, top - w * 0.3f), Offset(c.x + w * 0.25f, top - w * 0.3f), 2.dp.toPx(), cap = StrokeCap.Round)
+    drawLine(wood, Offset(c.x - w * 0.25f, bottom + w * 0.3f), Offset(c.x + w * 0.25f, bottom + w * 0.3f), 2.dp.toPx(), cap = StrokeCap.Round)
 }

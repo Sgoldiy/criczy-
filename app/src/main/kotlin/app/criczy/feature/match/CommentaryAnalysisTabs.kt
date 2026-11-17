@@ -1,9 +1,37 @@
 package app.criczy.feature.match
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import app.criczy.ui.components.ballStory
+import app.criczy.ui.components.storyColor
+import kotlinx.coroutines.delay
+
 import androidx.compose.ui.graphics.Color
 import app.criczy.core.model.MatchState
 import app.criczy.ui.components.BallGround
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -76,8 +104,10 @@ internal fun CommentaryTab(detail: MatchDetail, state: CommentaryUiState, action
             state.overs.isEmpty() && state.loading -> SkeletonList(count = 6, itemHeight = 64.dp)
             state.overs.isEmpty() && state.error != null -> ErrorState(state.error, actions.onRefresh)
             state.overs.isEmpty() -> TabEmpty("No commentary yet", "Commentary appears here as soon as the first ball is bowled.")
-            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
-                val newest = state.overs.first().balls.lastOrNull()
+            else -> {
+                // One ball open at a time; opening another closes the first. Reset per innings.
+                var open by rememberSaveable(state.inningsNumber) { mutableStateOf<String?>(null) }
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
                 state.overs.forEach { over ->
                     if (over.isComplete || over != state.overs.first()) {
                         item(key = "over-${over.number}") { Box(Modifier.animateItem()) { OverSummaryRow(detail, over) } }
@@ -87,7 +117,10 @@ internal fun CommentaryTab(detail: MatchDetail, state: CommentaryUiState, action
                     val last = over.balls.lastIndex
                     items(over.balls.size, key = { "ball-${over.number}-${last - it}" }) { index ->
                         val ball = over.balls[last - index]
-                        Box(Modifier.animateItem()) { BallRow(detail, ball, isNewest = ball === newest) }
+                        val key = "ball-${over.number}-${last - index}"
+                        Box(Modifier.animateItem()) {
+                            BallRow(detail, ball, expanded = open == key) { open = if (open == key) null else key }
+                        }
                     }
                 }
                 if (state.canLoadOlder) {
@@ -97,6 +130,7 @@ internal fun CommentaryTab(detail: MatchDetail, state: CommentaryUiState, action
                             else OutlinedButton(onClick = actions.onLoadOlderCommentary) { Text("Load earlier overs") }
                         }
                     }
+                }
                 }
             }
         }
@@ -121,36 +155,112 @@ private fun OverSummaryRow(detail: MatchDetail, over: Over) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun BallRow(detail: MatchDetail, ball: Ball, isNewest: Boolean) {
+private fun BallRow(detail: MatchDetail, ball: Ball, expanded: Boolean, onToggle: () -> Unit) {
     val comments = ball.commentary.filterNot { it.isEndOfOver }
-    val facts = listOfNotNull(ball.length, ball.line, ball.shot, ball.footwork, ball.connection, ball.fieldingPosition, ball.bowlingDetail, ball.dismissalType)
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 9.dp)) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(44.dp)) {
-            Text("${ball.overNumber - 1}.${ball.ballNumber}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.size(4.dp))
-            BallChip(ball, size = 32)
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 9.dp, bottom = if (expanded) 4.dp else 9.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(44.dp)) {
+                Text("${ball.overNumber - 1}.${ball.ballNumber}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.size(4.dp))
+                BallChip(ball, size = 32)
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                if (comments.isEmpty()) {
+                    val bowler = detail.player(ball.bowlerId)?.name ?: "Bowler"
+                    val batter = detail.player(ball.batterId)?.name ?: "batter"
+                    Text("$bowler to $batter, ${spokenBall(ball)}", style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    comments.forEach { Text(it.text, style = MaterialTheme.typography.bodyMedium) }
+                }
+                Spacer(Modifier.size(8.dp))
+                SeeShotLink(ball, expanded, onToggle)
+            }
         }
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            if (comments.isEmpty()) {
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(tween(320)) + fadeIn(tween(320)),
+            exit = shrinkVertically(tween(260)) + fadeOut(tween(180)),
+        ) {
+            BallReplayPanel(detail, ball)
+        }
+    }
+}
+
+/** "See shot · SIX": what happened, in the colour of the outcome; opens the ground below. */
+@Composable
+private fun SeeShotLink(ball: Ball, expanded: Boolean, onToggle: () -> Unit) {
+    val story = remember(ball) { ballStory(ball) }
+    val tone = storyColor(story.kind)
+    val turn by animateFloatAsState(if (expanded) 180f else 0f, tween(260), label = "chevron")
+    val verb = if (story.showsShot) "See shot" else "See ball"
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(50))
+            .background(tone.copy(alpha = if (expanded) 0.24f else 0.14f))
+            .clickable(role = Role.Button, onClickLabel = if (expanded) "Hide the ball on the ground" else "Show the ball on the ground", onClick = onToggle)
+            .padding(start = 12.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            buildAnnotatedString {
+                withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface)) { append("$verb · ") }
+                withStyle(SpanStyle(color = tone, fontWeight = FontWeight.Bold)) { append(story.headline) }
+            },
+            style = MaterialTheme.typography.labelLarge,
+        )
+        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = tone, modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = turn })
+    }
+}
+
+/**
+ * The open ball: the full-size ground replaying the delivery, and everything the scorers noted
+ * about it in one row underneath. Tapping the ground or Replay plays it again.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun BallReplayPanel(detail: MatchDetail, ball: Ball) {
+    var replay by remember { mutableIntStateOf(0) }
+    val story = remember(ball) { ballStory(ball) }
+    val shot = remember(ball) { WagonWheel.point(ball) }
+    val facts = listOfNotNull(
+        ball.length, ball.line, ball.bowlingDetail, ball.shot, ball.footwork, ball.connection,
+        shot?.takeIf { story.showsShot }?.let { if (it.inTheAir) "In the air" else "Along the ground" },
+        ball.fieldingPosition, ball.dismissalType,
+    ).distinct()
+    val bringIntoView = remember { BringIntoViewRequester() }
+    LaunchedEffect(Unit) {
+        // Let the space open first, then make sure the whole ground is on screen.
+        delay(340)
+        bringIntoView.bringIntoView()
+    }
+    Panel(Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp).bringIntoViewRequester(bringIntoView)) {
+        Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 val bowler = detail.player(ball.bowlerId)?.name ?: "Bowler"
                 val batter = detail.player(ball.batterId)?.name ?: "batter"
-                Text("$bowler to $batter, ${spokenBall(ball)}", style = MaterialTheme.typography.bodyMedium)
-            } else {
-                comments.forEach { Text(it.text, style = MaterialTheme.typography.bodyMedium) }
-            }
-            // Every delivery gets its own ground showing only that ball, dot balls included.
-            // The newest one is larger and plays out; older ones are drawn as they finished.
-            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                BallGround(ball, Modifier.size(if (isNewest) 200.dp else 150.dp), animate = isNewest)
-                if (facts.isNotEmpty()) {
-                    Spacer(Modifier.width(12.dp))
-                    FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        facts.forEach { Pill(it) }
-                    }
+                Column(Modifier.weight(1f)) {
+                    Text("${ball.overNumber - 1}.${ball.ballNumber}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("$bowler to $batter", style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                TextButton(onClick = { replay++ }) {
+                    Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Replay")
+                }
+            }
+            BallGround(
+                ball,
+                Modifier.align(Alignment.CenterHorizontally).fillMaxWidth().widthIn(max = 480.dp).padding(horizontal = 8.dp)
+                    .clickable(onClickLabel = "Replay the ball") { replay++ },
+                animate = true, replayKey = replay,
+            )
+            if (facts.isNotEmpty()) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) { facts.forEach { Pill(it) } }
             }
         }
     }

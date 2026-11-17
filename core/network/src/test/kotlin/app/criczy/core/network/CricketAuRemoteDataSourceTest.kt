@@ -140,6 +140,14 @@ class CricketAuRemoteDataSourceTest {
     }
 
     @Test
+    fun `balls carry the bowler's arm and side of the wicket`() = runTest {
+        enqueue("comments_mobile.json")
+        val balls = source.commentaryPage(40644, inningsNumber = 2).overs.flatMap { it.balls }
+        assertTrue(balls.all { it.bowlingArm in setOf("Right", "Left") })
+        assertTrue(balls.all { it.bowlingFrom in setOf("Over", "Round") })
+    }
+
+    @Test
     fun `commentary page reports the cursor for older overs`() = runTest {
         enqueue("comments_mobile.json")
         val page = source.commentaryPage(40644, inningsNumber = 2)

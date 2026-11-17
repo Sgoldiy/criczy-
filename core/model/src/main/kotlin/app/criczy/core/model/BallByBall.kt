@@ -43,6 +43,10 @@ data class Ball(
     val bowlingDetail: String?,
     val inTheAir: Boolean,
     val commentary: List<Comment>,
+    /** "Right" or "Left": the bowler's arm. */
+    val bowlingArm: String? = null,
+    /** "Over" or "Round" the wicket. */
+    val bowlingFrom: String? = null,
 ) {
     /** Counts towards the six legal balls of an over. */
     val isLegal: Boolean get() = !isWide && !isNoBall

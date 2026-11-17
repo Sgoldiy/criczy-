@@ -298,6 +298,8 @@ internal data class BallDto(
     @SerialName("BattingFeetId") val feetId: String = "",
     @SerialName("FieldingPosition") val fieldingPosition: String = "",
     @SerialName("BowlingDetailId") val bowlingDetailId: String = "",
+    @SerialName("BowlingHandId") val bowlingHandId: String = "",
+    @SerialName("BowlingFromId") val bowlingFromId: String = "",
     @SerialName("Comments") val comments: List<CommentDto> = emptyList(),
 )
 
