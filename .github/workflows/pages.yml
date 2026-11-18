@@ -1,0 +1,58 @@
+name: Website
+
+# Publishes the landing page and privacy policy (docs/store/make_site.py) to GitHub Pages:
+# https://sgoldiy.github.io/criczy-/privacy.html. Needs Settings → Pages → Source: GitHub Actions, once.
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/PRIVACY_POLICY.md
+      - docs/store/make_site.py
+      - docs/store/icon-512.png
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.policy.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: policy
+        name: Check the privacy policy has a contact
+        run: |
+          if grep -q "add your support email here" docs/PRIVACY_POLICY.md; then
+            echo "::warning::The privacy policy has no support email yet, so the site was not published."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build the site
+        if: steps.policy.outputs.ready == 'true'
+        run: python3 docs/store/make_site.py _site
+      - name: Upload the site
+        if: steps.policy.outputs.ready == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

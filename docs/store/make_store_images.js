@@ -1,5 +1,6 @@
 // Builds the Play Store images from the PNGs that StoreScreenshotsTest renders:
 //   docs/store/play/01..06-*.png   six phone screenshots, 1080 x 1920, one continuous background across the set
+//   docs/store/play/tablet-7in, tablet-10in   four landscape tablet screenshots each, 1920 x 1080 and 2560 x 1440
 //   docs/store/play/feature-graphic.png   1024 x 500
 //   docs/store/icon-512.png        the listing icon, from docs/store/icon.svg (written by make_icon.py)
 // Run from the repository root:
@@ -225,6 +226,61 @@ function slideHtml(s, i) {
   </body></html>`;
 }
 
+// ------------------------------------------------------------------ tablets (landscape, 16:9)
+
+/** A landscape tablet showing one render, with a status bar and the camera in the bezel. */
+function tablet(file, left, top, width) {
+  const k = width / 1180;
+  const edge = 5 * k;
+  const bezel = 26 * k;
+  const screenW = width - 2 * (edge + bezel);
+  const statusH = 30 * k;
+  return `<div class="phone" style="left:${left}px;top:${top}px;width:${width}px;padding:${edge}px;border-radius:${52 * k}px">
+    <div class="bezel" style="position:relative;padding:${bezel}px;border-radius:${47 * k}px">
+      <b class="cam" style="width:${10 * k}px;height:${10 * k}px;top:${8 * k}px;margin-left:${-5 * k}px"></b>
+      <div class="screen" style="border-radius:${16 * k}px">
+        <div class="status" style="height:${statusH}px;padding:0 ${26 * k}px;font-size:${17 * k}px">
+          <span>8:24</span>${statusIcons(k * 0.95)}
+        </div>
+        <img src="${url(file)}" style="width:${screenW}px">
+      </div>
+    </div>
+  </div>`;
+}
+
+const tabletSlides = [
+  { name: '01-live-scores', shot: '1-home', kicker: 'Live scores', live: true, lines: ['Every match.', 'Live.'], sub: 'Tests, ODIs and T20s, ball by ball' },
+  { name: '02-match-centre', shot: '2-match', kicker: 'Match centre', lines: ['Follow the', 'chase'], sub: 'Target, run rate and who is at the crease' },
+  { name: '03-scorecard', shot: '3-scorecard', kicker: 'Scorecard', lines: ['Every run,', 'every wicket'], sub: 'Full scorecards, innings by innings' },
+  { name: '04-analysis', shot: '4-analysis', kicker: 'Analysis', lines: ['Analysis that', 'goes deeper'], sub: 'Worm and Manhattan for every innings' },
+];
+
+function tabletHtml(t, prefix, TW, TH) {
+  const k = TW / 1920;
+  const bg = backdrop(TW, TH, {
+    glows: [[300 * k, 200 * k, 700 * k, 'amberGlow', .22], [1500 * k, 1000 * k, 900 * k, 'blueGlow', .45], [1700 * k, 120 * k, 500 * k, 'amberGlow', .1]],
+    ribbon: wave(-10, TW + 10, 900 * k, 90 * k, 2600 * k, 0.6),
+    dots: wave(-10, TW + 10, 960 * k, 70 * k, 2600 * k, 1.3),
+  });
+  const width = 1130 * k;
+  const left = TW - width - 64 * k;
+  const top = (TH - width * 0.674) / 2;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>${css}
+  .kicker { font-size: ${30 * k}px; letter-spacing: ${4.5 * k}px; padding: ${9 * k}px ${24 * k}px; gap: ${12 * k}px; }
+  .dot { width: ${12 * k}px; height: ${12 * k}px; }
+  h1 { font-size: ${98 * k}px; }
+  .sub { font-size: ${30 * k}px; }
+  </style></head><body style="width:${TW}px;height:${TH}px">
+    ${bg}
+    <div style="position:absolute;left:${86 * k}px;width:${600 * k}px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:center">
+      <div><div class="kicker">${t.live ? '<span class="dot"></span>' : ''}${t.kicker}</div></div>
+      <h1 style="margin-top:${30 * k}px">${t.lines[0]}<br><span class="amber">${t.lines[1]}</span></h1>
+      <div class="sub" style="margin-top:${24 * k}px">${t.sub}</div>
+    </div>
+    ${tablet(`${prefix}-${t.shot}.png`, left, top, width)}
+  </body></html>`;
+}
+
 // ------------------------------------------------------------------ feature graphic
 
 function featureHtml() {
@@ -282,8 +338,12 @@ function iconHtml() {
     fs.unlinkSync(tmp);
   };
   for (const [i, s] of slides.entries()) await render(slideHtml(s, i), W, H, path.join(out, s.name + '.png'));
+  for (const [prefix, folder, TW, TH] of [['tablet7', 'tablet-7in', 1920, 1080], ['tablet10', 'tablet-10in', 2560, 1440]]) {
+    fs.mkdirSync(path.join(out, folder), { recursive: true });
+    for (const t of tabletSlides) await render(tabletHtml(t, prefix, TW, TH), TW, TH, path.join(out, folder, t.name + '.png'));
+  }
   await render(featureHtml(), 1024, 500, path.join(out, 'feature-graphic.png'));
   await render(iconHtml(), 512, 512, path.join(root, 'docs/store/icon-512.png'));
   await browser.close();
-  console.log('Wrote', slides.map((s) => s.name).join(', '), ', feature-graphic and icon-512');
+  console.log('Wrote', slides.map((s) => s.name).join(', '), ', 7 and 10 inch tablet sets, feature-graphic and icon-512');
 })();

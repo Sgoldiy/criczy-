@@ -59,9 +59,9 @@ For you to do:
 - [ ] **Decide on the data source.** The API is Cricket Australia's and is not licensed to third parties. Team logos, player photos and news images are theirs too. Publishing with it risks a takedown or account strike. Get permission, or switch provider (see ARCHITECTURE.md).
 - [ ] Check the name "Criczy" is free on Play and not a trademark.
 - [ ] Test the release build on real devices (see TESTING.md).
-- [ ] Host the privacy policy at a public URL and enter it in Play Console.
-- [ ] Data safety form: no data collected or shared; data is not encrypted in transit by you but all traffic is HTTPS.
+- [ ] Privacy policy URL: `https://sgoldiy.github.io/criczy-/privacy.html`, built by `docs/store/make_site.py` and published by `.github/workflows/pages.yml`. Once: Settings → Pages → Build and deployment → Source: **GitHub Actions**. It publishes when the support email is in `docs/PRIVACY_POLICY.md` and that change is on `main` (or run Actions → Website → Run workflow). Until then the workflow skips with a warning.
+- [ ] Data safety form: scores need no data, but the fan community stores a username (Personal info: User IDs) and posts, polls and votes (App activity: user-generated content, app interactions) with Firebase, encrypted in transit and deleted after 24 hours; not shared. Check Play's account deletion requirement, since joining the community creates a username account.
 - [ ] Content rating questionnaire, target audience, app category (Sports).
-- [ ] Store listing: 512×512 icon (ready at `docs/store/icon-512.png`), 1024×500 feature graphic, phone and tablet screenshots (`docs/screenshots` is a start), short and full descriptions. Do not use team logos or player photos in the listing without rights.
+- [ ] Store listing: all text and images are ready in `docs/store/LISTING.md` and `docs/store/play/` (icon, feature graphic, six phone and four 7-inch and 10-inch tablet screenshots). Do not use team logos or player photos in the listing without rights.
 - [ ] Add a contact email to the listing and to the privacy policy.
 - [ ] New personal developer accounts must run a closed test with 12 testers for 14 days before production.

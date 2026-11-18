@@ -88,11 +88,14 @@ internal fun stripHtml(value: String): String? =
         .trim()
         .takeIf { it.isNotEmpty() }
 
-/** `PascalCase` identifiers such as `OutsideOff` become `Outside off`. */
+/** `PascalCase` identifiers such as `OutsideOff` become `Outside off`, and `BackOfALength` `Back of a length`. */
 internal fun humanise(identifier: String): String? {
     val text = identifier.orNullIfBlank()?.takeUnless { it == "Null" || it == "None" } ?: return null
-    return text.replace(Regex("(?<=[a-z])(?=[A-Z])"), " ").lowercase().replaceFirstChar(Char::uppercase)
+    // A word starts at a capital after a lowercase letter, or at a capital that ends a one-letter word ("A" in "OfALength").
+    return text.replace(wordStart, " ").lowercase().replaceFirstChar(Char::uppercase)
 }
+
+private val wordStart = Regex("(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
 private val t20Leagues = setOf("bbl", "wbbl", "ipl", "wpl", "psl", "cpl", "sa20", "ilt20")
 

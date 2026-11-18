@@ -187,7 +187,47 @@ class StoreScreenshotsTest {
         compose.awaitText("Who wins?")
         shot("6-community")
     }
+
+    // ---------------------------------------------------------------- tablets, landscape, at xhdpi
+
+    private fun tabletMatchCentre(prefix: String) {
+        launchApp()
+        compose.awaitText("India")
+        shot("$prefix-1-home")
+        compose.onAllNodesWithText("India v Australia Tests", substring = true).onFirst().performClick()
+        compose.awaitText("Target")
+        shot("$prefix-2-match")
+        compose.onNodeWithText("Scorecard").performClick()
+        compose.awaitText("Yashasvi Jaiswal")
+        shot("$prefix-3-scorecard")
+    }
+
+    private fun tabletAnalysis(prefix: String) {
+        openT20()
+        compose.onNodeWithText("Analysis").performScrollTo().performClick()
+        compose.awaitText("WORM")
+        shot("$prefix-4-analysis")
+    }
+
+    @Test
+    @Config(qualifiers = TABLET_7)
+    fun `7 inch tablet, home and match centre`() = tabletMatchCentre("tablet7")
+
+    @Test
+    @Config(qualifiers = TABLET_7)
+    fun `7 inch tablet, analysis`() = tabletAnalysis("tablet7")
+
+    @Test
+    @Config(qualifiers = TABLET_10)
+    fun `10 inch tablet, home and match centre`() = tabletMatchCentre("tablet10")
+
+    @Test
+    @Config(qualifiers = TABLET_10)
+    fun `10 inch tablet, analysis`() = tabletAnalysis("tablet10")
 }
+
+private const val TABLET_7 = "w960dp-h600dp-xhdpi"
+private const val TABLET_10 = "w1280dp-h800dp-xhdpi"
 
 /** Old name to new name, longest first so a full name is replaced before its surname. */
 private val players = listOf(
@@ -218,8 +258,13 @@ private val teamsAndSeries = listOf(
     " - Men\"" to "\"", " Men\"" to "\"",
 )
 
-private val shortNames = mapOf("THU" to "IND", "SIX" to "IND", "AFG" to "IND", "STA" to "AUS", "STR" to "AUS", "ZIM" to "AUS")
-private val colours = mapOf("#97D700" to "#1F4BB4", "#1143EE" to "#1F4BB4", "#00B140" to "#FFCD00", "#EE1C25" to "#FFCD00")
+// "India Men" (New Zealand's opponent) became West Indies above, so its code changes first.
+private val shortNames = mapOf("IND" to "WI", "THU" to "IND", "SIX" to "IND", "AFG" to "IND", "STA" to "AUS", "STR" to "AUS", "ZIM" to "AUS")
+private val colours = mapOf(
+    "#97D700" to "#1F4BB4", "#1143EE" to "#1F4BB4", "#ff00a0" to "#1F4BB4", // India
+    "#00B140" to "#FFCD00", "#EE1C25" to "#FFCD00", "#0085CA" to "#FFCD00", "#085251" to "#FFCD00", // Australia
+    "#28C2F5" to "#7B0041", // West Indies
+)
 
 internal fun storeData(json: String): String {
     var s = json

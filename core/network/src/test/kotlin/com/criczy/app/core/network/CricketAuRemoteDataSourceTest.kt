@@ -140,6 +140,17 @@ class CricketAuRemoteDataSourceTest {
     }
 
     @Test
+    fun `ball lengths and lines read as words`() = runTest {
+        enqueue("comments_mobile.json")
+        val balls = source.commentaryPage(40644, inningsNumber = 2).overs.flatMap { it.balls }
+        assertEquals(
+            setOf("Length ball", "Back of a length", "Half volley", "Short", "Yorker", "Half tracker"),
+            balls.mapNotNull { it.length }.toSet(),
+        )
+        assertTrue("Outside off" in balls.mapNotNull { it.line })
+    }
+
+    @Test
     fun `balls carry the bowler's arm and side of the wicket`() = runTest {
         enqueue("comments_mobile.json")
         val balls = source.commentaryPage(40644, inningsNumber = 2).overs.flatMap { it.balls }
