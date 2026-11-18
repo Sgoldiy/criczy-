@@ -1,5 +1,11 @@
 package com.criczy.app.feature.match
 
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.activity.compose.LocalActivity
+import com.criczy.app.ads.LocalAds
 import android.widget.Toast
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.PushPin
@@ -121,6 +127,7 @@ fun MatchRoute(
     val event by vm.scoreEvent.collectAsStateWithLifecycle()
     val series by vm.seriesMatches.collectAsStateWithLifecycle()
     val pinned by LiveScoreService.pinned.collectAsStateWithLifecycle()
+    FinishedMatchBreak(finished = detail.data?.detail?.match?.state == MatchState.COMPLETED)
     MatchScreen(
         pinned = pinned == matchId,
         detail = detail, commentary = commentary, analysis = analysis, highlights = highlights,
@@ -315,4 +322,26 @@ private fun MatchHeader(detail: MatchDetail) {
 @Composable
 internal fun TabEmpty(title: String, body: String) {
     Box(Modifier.fillMaxSize()) { EmptyState(title, body, Modifier.height(260.dp)) }
+}
+
+/**
+ * Leaving a finished match is a natural break: the interstitial is loaded when the match opens, so it is ready, and
+ * shown (if the caps allow) once the user goes back. Never for a match in play, and not when moving on to a player
+ * or team page from here, or on rotation.
+ */
+@Composable
+private fun FinishedMatchBreak(finished: Boolean) {
+    if (!finished) return
+    val ads = LocalAds.current
+    val activity = LocalActivity.current ?: return
+    val owner = LocalLifecycleOwner.current
+    LaunchedEffect(Unit) { ads.prepareInterstitial(activity) }
+    DisposableEffect(owner) {
+        val observer = LifecycleEventObserver { _, event ->
+            // The back stack entry is destroyed only when the match screen is popped.
+            if (event == Lifecycle.Event.ON_DESTROY && !activity.isChangingConfigurations && !activity.isFinishing) ads.onNaturalBreak(activity)
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
 }

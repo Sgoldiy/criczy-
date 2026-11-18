@@ -31,6 +31,7 @@ import com.criczy.app.feature.onboarding.OnboardingScreen
 import com.criczy.app.feature.onboarding.TeamPickerRoute
 import com.criczy.app.navigation.CriczyNavHost
 import com.criczy.app.navigation.Routes
+import com.criczy.app.ads.LocalAds
 import com.criczy.app.ui.LocalAppContainer
 import com.criczy.app.ui.theme.CriczyTheme
 import kotlinx.coroutines.flow.map
@@ -42,6 +43,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val container = (application as CriczyApp).container
+        if (savedInstanceState == null && intent?.data?.scheme == "criczy") container.ads.onOpenedFromLink()
         // Hold the splash until preferences are read, so the theme and first screen never flicker.
         // Null until the first read from disk.
         val preferences = container.preferences.preferences.map<UserPreferences, UserPreferences?> { it }
@@ -53,7 +55,7 @@ class MainActivity : ComponentActivity() {
             val loaded = prefs ?: return@setContent
             ready = true
             val scope = rememberCoroutineScope()
-            CompositionLocalProvider(LocalAppContainer provides container) {
+            CompositionLocalProvider(LocalAppContainer provides container, LocalAds provides container.ads) {
                 CriczyTheme(loaded.themeMode, loaded.dynamicColor) {
                     if (!loaded.onboardingDone) {
                         // The intro pages, then a team picker; finishing either way ends onboarding.
@@ -74,6 +76,8 @@ class MainActivity : ComponentActivity() {
                             ) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
 
+                        // Consent and ads start once the user is past onboarding, never over the intro.
+                        LaunchedEffect(Unit) { container.ads.start(this@MainActivity) }
                         CriczyNavHost(navController)
                         BackHandler(enabled = loaded.confirmExit && entry?.destination?.route == Routes.HOME) { confirmExit = true }
                         if (confirmExit) {
@@ -89,5 +93,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        if (intent.data?.scheme == "criczy") (application as CriczyApp).container.ads.onOpenedFromLink()
     }
 }

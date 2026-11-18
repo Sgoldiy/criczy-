@@ -26,6 +26,15 @@ val keystoreProperties = Properties().apply {
     if (file.exists()) file.inputStream().use(::load)
 }
 
+// The AdMob app id must be in the manifest at build time; ad unit ids come from Firebase Realtime Database
+// at run time. Put admob.appId=ca-app-pub-…~… in admob.properties (never committed). Without it, builds use
+// Google's sample app id, which only serves test ads: fine for development and CI, never for Play.
+val admobProperties = Properties().apply {
+    val file = rootProject.file("admob.properties")
+    if (file.exists()) file.inputStream().use(::load)
+}
+val admobAppId: String = admobProperties.getProperty("admob.appId") ?: "ca-app-pub-3940256099942544~3347511713"
+
 android {
     namespace = "com.criczy.app"
     compileSdk = 36
@@ -37,6 +46,7 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders["admobAppId"] = admobAppId
     }
 
     signingConfigs {
@@ -124,6 +134,9 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
+    implementation(libs.firebase.database)
+    implementation(libs.play.services.ads)
+    implementation(libs.ump)
     implementation(libs.kotlinx.coroutines.play.services)
 
     debugImplementation(libs.androidx.compose.ui.tooling)

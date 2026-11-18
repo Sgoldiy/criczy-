@@ -25,6 +25,8 @@ androidxTest = "1.6.1"
 androidxTestExt = "1.2.1"
 desugar = "2.1.5"
 firebaseBom = "33.16.0"
+playServicesAds = "24.5.0"
+ump = "3.2.0"
 googleServices = "4.4.3"
 
 [libraries]
@@ -75,6 +77,9 @@ androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "a
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-auth = { module = "com.google.firebase:firebase-auth" }
 firebase-firestore = { module = "com.google.firebase:firebase-firestore" }
+firebase-database = { module = "com.google.firebase:firebase-database" }
+play-services-ads = { module = "com.google.android.gms:play-services-ads", version.ref = "playServicesAds" }
+ump = { module = "com.google.android.ump:user-messaging-platform", version.ref = "ump" }
 kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
 
 [plugins]

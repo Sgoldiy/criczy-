@@ -1,0 +1,10 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "ads_config": {
+      ".read": true,
+      ".write": false
+    }
+  }
+}

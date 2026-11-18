@@ -68,7 +68,7 @@ class TestCriczyApp : CriczyApp() {
     override fun createContainer(): AppContainer =
         AppContainer(
             this, remoteOverride = FixtureServer.remote(), databaseOverride = CriczyDatabase.inMemory(this),
-            communityOverride = com.criczy.app.core.data.UnavailableCommunityBackend,
+            communityOverride = com.criczy.app.core.data.UnavailableCommunityBackend, adsOverride = com.criczy.app.ads.NoAds,
         )
 
     override fun startBackgroundWork() = Unit

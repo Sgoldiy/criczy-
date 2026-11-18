@@ -1,5 +1,7 @@
 package com.criczy.app.feature.series
 
+import com.criczy.app.ads.AdUnit
+import com.criczy.app.ads.BannerAdSlot
 import com.criczy.app.ui.components.listPaddingAboveBar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -197,6 +199,7 @@ fun SeriesListScreen(
                             }
                         }
                         if (shown.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { EmptyState("No series", "No series match this filter.") }
+                        else item(span = { GridItemSpan(maxLineSpan) }, key = "ad") { BannerAdSlot(AdUnit.BANNER_BROWSE) }
                     }
                 }
             }
@@ -457,6 +460,7 @@ fun StandingsTable(standings: Loadable<Standings>, onTeam: (Int) -> Unit, onRetr
         item {
             Text("P played · W won · L lost · T tied · D drawn · NR no result · BP bonus points · NRR net run rate", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        item(key = "ad") { BannerAdSlot(AdUnit.BANNER_BROWSE) }
     }
 }
 
@@ -501,6 +505,7 @@ private fun StatsTab(state: CompetitionUiState, onPlayer: (Int) -> Unit, onRetry
         if (board.mostSixes.isNotEmpty()) {
             item { LeaderPanel("Most sixes", board.mostSixes.take(5).map { Triple(it.playerId, it.name, "${it.sixes}") to "${it.runs} runs · ${it.fours} fours" }, onPlayer) }
         }
+        item(key = "ad") { BannerAdSlot(AdUnit.BANNER_BROWSE) }
     }
     if (comparing) ComparePlayersSheet(board, "Totals from ${board.matches} completed matches of ${state.name}", onDismiss = { comparing = false })
 }

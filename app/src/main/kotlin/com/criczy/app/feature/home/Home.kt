@@ -1,6 +1,11 @@
 package com.criczy.app.feature.home
 
 import com.criczy.app.ui.components.bottomBarPadding
+import com.criczy.app.ads.AdUnit
+import com.criczy.app.ads.AdsPolicy
+import com.criczy.app.ads.LocalAds
+import com.criczy.app.ads.NativeAdSlot
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
@@ -223,8 +228,8 @@ fun HomeScreen(
                     else -> HorizontalPager(pager, Modifier.fillMaxSize()) { page ->
                         when (page) {
                             0 -> LiveTab(state, onMatch, onCompetition, onOpenUrl, onNews)
-                            1 -> MatchList(state.upcoming, state, onMatch, groupByDay = true, emptyTitle = "No upcoming matches", emptyBody = "Nothing scheduled matches this filter.")
-                            else -> MatchList(state.completed, state, onMatch, groupByDay = false, emptyTitle = "No results", emptyBody = "No finished matches match this filter.")
+                            1 -> MatchList(state.upcoming, state, onMatch, adKey = "upcoming", groupByDay = true, emptyTitle = "No upcoming matches", emptyBody = "Nothing scheduled matches this filter.")
+                            else -> MatchList(state.completed, state, onMatch, adKey = "results", groupByDay = false, emptyTitle = "No results", emptyBody = "No finished matches match this filter.")
                         }
                     }
                 }
@@ -317,6 +322,7 @@ private fun MatchList(
     matches: List<Match>,
     state: HomeUiState,
     onMatch: (Int) -> Unit,
+    adKey: String,
     groupByDay: Boolean,
     emptyTitle: String,
     emptyBody: String,
@@ -327,6 +333,9 @@ private fun MatchList(
     }
     val zone = ZoneId.systemDefault()
     val groups = matches.groupBy { it.start?.atZone(zone)?.toLocalDate() }
+    // Native ads between match cards (positions from the ad configuration); none on the Live tab.
+    val adState by LocalAds.current.state.collectAsState()
+    val adsAfter = if (adState.shows(AdUnit.NATIVE_HOME)) AdsPolicy.nativePositions(matches.size, adState.config.unit(AdUnit.NATIVE_HOME)).toSet() else emptySet()
     LazyVerticalGrid(
         columns = GridCells.Adaptive(330.dp),
         contentPadding = gridPadding,
@@ -334,13 +343,21 @@ private fun MatchList(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
+        var shown = 0
         groups.forEach { (day, dayMatches) ->
             if (groupByDay || groups.size > 1) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "day-$day") {
                     GroupLabel(dayMatches.first().start?.let { Formatters.matchTime(it).substringBefore(',') } ?: "Date to be confirmed")
                 }
             }
-            items(dayMatches, key = { it.id }) { MatchCard(it, { onMatch(it.id) }, isFavourite = it.id in state.followedMatchIds) }
+            dayMatches.forEach { match ->
+                item(key = match.id) { MatchCard(match, { onMatch(match.id) }, isFavourite = match.id in state.followedMatchIds) }
+                shown++
+                if (shown in adsAfter) {
+                    val slot = "$adKey-$shown"
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "ad-$slot") { NativeAdSlot(AdUnit.NATIVE_HOME, slot) }
+                }
+            }
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.criczy.app.feature.player
 
+import com.criczy.app.ads.AdUnit
+import com.criczy.app.ads.BannerAdSlot
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -211,6 +213,7 @@ fun PlayerScreen(
                         "Career statistics aren't available from the score service. Recent form comes from the team's latest scorecards; tournament figures are under a series' Stats tab.",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    BannerAdSlot(AdUnit.BANNER_BROWSE)
                 }
             }
         }

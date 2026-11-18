@@ -1,5 +1,7 @@
 package com.criczy.app.feature.teams
 
+import com.criczy.app.ads.AdUnit
+import com.criczy.app.ads.BannerAdSlot
 import com.criczy.app.ui.teamForm
 import com.criczy.app.ui.FormResult
 import com.criczy.app.core.model.Match
@@ -250,6 +252,7 @@ fun TeamScreen(state: TeamUiState, onBack: () -> Unit, onMatch: (Int) -> Unit, o
                             items(list, key = { it.id }) { MatchCard(it, { onMatch(it.id) }) }
                         }
                     }
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "ad") { BannerAdSlot(AdUnit.BANNER_BROWSE) }
                 }
             }
         }

@@ -1,5 +1,7 @@
 package com.criczy.app.feature.match
 
+import com.criczy.app.ads.AdUnit
+import com.criczy.app.ads.BannerAdSlot
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.items
@@ -566,6 +568,8 @@ internal fun ScorecardTab(detail: MatchDetail, onPlayer: (Int) -> Unit) {
                     }
                 }
             }
+            // Banners only once the match is over: never beside a live score.
+            if (detail.match.state == MatchState.COMPLETED) item(key = "ad") { BannerAdSlot(AdUnit.BANNER_MATCH) }
         }
     }
 }

@@ -1,6 +1,11 @@
 package com.criczy.app.feature.news
 
 import com.criczy.app.ui.components.listPaddingAboveBar
+import com.criczy.app.ads.AdUnit
+import com.criczy.app.ads.AdsPolicy
+import com.criczy.app.ads.LocalAds
+import com.criczy.app.ads.NativeAdSlot
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.size
@@ -139,6 +144,8 @@ fun NewsScreen(state: Loadable<NewsFeed>, onOpenUrl: (String) -> Unit, onRefresh
                     val filters = NewsFilter.entries.filter { it != NewsFilter.FOLLOWING || !follows.isEmpty }
                     val active = filter.takeIf { it in filters } ?: NewsFilter.ALL
                     val articles = feed.articles.filter { active.accepts(it, follows) }
+                    val adState by LocalAds.current.state.collectAsState()
+                    val adsAfter = if (adState.shows(AdUnit.NATIVE_NEWS)) AdsPolicy.nativePositions(articles.size, adState.config.unit(AdUnit.NATIVE_NEWS)).toSet() else emptySet()
                     LazyVerticalGrid(
                         GridCells.Adaptive(330.dp), contentPadding = listPaddingAboveBar(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -173,7 +180,14 @@ fun NewsScreen(state: Loadable<NewsFeed>, onOpenUrl: (String) -> Unit, onRefresh
                         articles.firstOrNull()?.let { lead ->
                             item(span = { GridItemSpan(maxLineSpan) }, key = "lead-${lead.id}") { ArticleCard(lead) { onOpenUrl(lead.url) } }
                         }
-                        items(articles.drop(1), key = { it.id }) { article -> NewsRow(article, onClick = { onOpenUrl(article.url) }) }
+                        // Native ads between stories (positions from the ad configuration), counting the lead story.
+                        articles.drop(1).forEachIndexed { index, article ->
+                            item(key = article.id) { NewsRow(article, onClick = { onOpenUrl(article.url) }) }
+                            val shown = index + 2
+                            if (shown in adsAfter) {
+                                item(span = { GridItemSpan(maxLineSpan) }, key = "ad-news-$shown") { NativeAdSlot(AdUnit.NATIVE_NEWS, "news-$shown") }
+                            }
+                        }
                         item(span = { GridItemSpan(maxLineSpan) }, key = "source") {
                             Text("Stories open on cricket.com.au.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }

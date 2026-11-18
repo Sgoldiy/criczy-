@@ -52,7 +52,7 @@ Done in the project:
 - [x] Target SDK 36, 64-bit safe (no native code)
 - [x] Notification permission requested at runtime on Android 13+
 - [x] In-app privacy policy; policy text in `docs/PRIVACY_POLICY.md`
-- [x] No ads, analytics, accounts or advertising ID
+- [x] No analytics; ads (AdMob) are set up as described in `docs/ADS.md`, whose release checklist covers AdMob, Realtime Database and Play Console
 
 For you to do:
 

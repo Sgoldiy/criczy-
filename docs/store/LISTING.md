@@ -89,4 +89,4 @@ Welcome to Criczy: live scores, ball-by-ball commentary with shot replays, match
 
 - **Content rating:** the fan community lets users share content with each other (user-generated content), with reporting and blocking.
 - **Target audience:** 13 and over, because of the community.
-- **Ads:** "No" while the app has none; change it when AdMob is added.
+- **Ads:** "Yes" (AdMob). Also the Advertising ID declaration and the Data safety entries in `docs/ADS.md`.

@@ -2,6 +2,8 @@ package com.criczy.app.di
 
 import android.content.Context
 import com.criczy.app.BuildConfig
+import com.criczy.app.ads.AdsBackend
+import com.criczy.app.ads.GoogleAds
 import com.criczy.app.community.FirestoreCommunityBackend
 import com.criczy.app.core.data.CommunityBackend
 import com.criczy.app.core.data.CommunityRepository
@@ -31,6 +33,7 @@ class AppContainer(
     remoteOverride: CricketRemoteDataSource? = null,
     databaseOverride: CriczyDatabase? = null,
     communityOverride: CommunityBackend? = null,
+    adsOverride: AdsBackend? = null,
 ) {
     val connection = ConnectionMonitor()
 
@@ -70,4 +73,7 @@ class AppContainer(
     val favourites by lazy { FavouritesRepository(database.favourites()) }
     val community by lazy { CommunityRepository(communityOverride ?: FirestoreCommunityBackend(context), database.community()) }
     val search by lazy { SearchRepository(catalog, matches, database.seenPlayers()) }
+
+    /** Created on the main thread (MainActivity) the first time it is used. Tests pass [NoAds]. */
+    val ads: AdsBackend by lazy { adsOverride ?: GoogleAds(context, BuildConfig.DEBUG) }
 }

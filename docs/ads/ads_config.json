@@ -1,0 +1,47 @@
+{
+  "ads_config": {
+    "enabled": true,
+    "test_device_ids": [],
+    "native_home": {
+      "enabled": true,
+      "unit_id": "REPLACE_WITH_NATIVE_UNIT_ID",
+      "first_position": 3,
+      "interval": 8
+    },
+    "native_news": {
+      "enabled": true,
+      "unit_id": "REPLACE_WITH_NATIVE_UNIT_ID",
+      "first_position": 4,
+      "interval": 6
+    },
+    "banner_match": {
+      "enabled": true,
+      "unit_id": "REPLACE_WITH_BANNER_UNIT_ID"
+    },
+    "banner_browse": {
+      "enabled": true,
+      "unit_id": "REPLACE_WITH_BANNER_UNIT_ID"
+    },
+    "interstitial": {
+      "enabled": true,
+      "unit_id": "REPLACE_WITH_INTERSTITIAL_UNIT_ID",
+      "min_interval_minutes": 4,
+      "daily_cap": 3,
+      "grace_hours": 48,
+      "quiet_after_link_minutes": 10
+    },
+    "rewarded": {
+      "enabled": true,
+      "unit_id": "REPLACE_WITH_REWARDED_UNIT_ID",
+      "reward_hours": 24
+    },
+    "app_open": {
+      "enabled": false,
+      "unit_id": "REPLACE_WITH_APP_OPEN_UNIT_ID",
+      "min_away_minutes": 120,
+      "daily_cap": 1,
+      "grace_hours": 168,
+      "quiet_after_link_minutes": 10
+    }
+  }
+}

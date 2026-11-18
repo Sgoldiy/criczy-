@@ -1,5 +1,7 @@
 package com.criczy.app.feature.match
 
+import com.criczy.app.ads.AdUnit
+import com.criczy.app.ads.BannerAdSlot
 import com.criczy.app.core.analytics.BattingControl
 import com.criczy.app.core.analytics.BowlerKind
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -828,6 +830,8 @@ internal fun AnalysisTab(detail: MatchDetail, analysis: Loadable<Map<Int, Inning
             if (!innings.isComplete) {
                 item { Text("Some early overs of this innings could not be loaded, so partnerships are hidden.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
+            // Banners only once the match is over: never beside a live score.
+            if (detail.match.state == MatchState.COMPLETED) item(key = "ad") { BannerAdSlot(AdUnit.BANNER_MATCH) }
         }
     }
 }

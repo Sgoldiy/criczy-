@@ -6,13 +6,13 @@ Read this before exploring. It records what is already known so it does not need
 
 Android cricket app (Kotlin, Jetpack Compose, Material 3) that replaces the owner's older app, Cricpeak (`Sgoldiy/CRICSCORE`, package `com.cricpeak.scorelive`). Do not modify that repository. Its audit is in `docs/CRICPEAK_AUDIT.md`; there is no need to read its code again.
 
-Status: feature-complete for v1.0.0 plus the fan community, match-day features, team picker, pinned live score, batting control and three home screen widgets; 175 test runs, 162 passing and 13 skipped (the gated store renders and live API checks; core:data tests run for debug and release), lint clean, release APK and AAB build. Never run on a real device or emulator.
+Status: feature-complete for v1.0.0 plus the fan community, match-day features, team picker, pinned live score, batting control and three home screen widgets; 185 test runs, 172 passing and 13 skipped (the gated store renders and live API checks; core:data tests run for debug and release), lint clean, release APK and AAB build. Never run on a real device or emulator.
 
 ## Decisions already made by the owner (do not re-ask)
 
 - Data source stays the cricket.com.au API, kept behind `CricketRemoteDataSource` so it can be swapped.
-- AI (Gemini) and ads (AdMob, rewarded locks) are deferred. Do not add them unless asked.
-- Firebase is used only for the fan community (anonymous Auth + Firestore); no Analytics, Messaging or Crashlytics. Design and console setup: `docs/FIREBASE.md`.
+- AI (Gemini) is deferred. Ads are in (AdMob, owner's request, 18 Nov 2026): native, banner, interstitial, rewarded (opt-in "hide ads", no locks) and app open, configured from Firebase Realtime Database; see `docs/ADS.md`.
+- Firebase is used for the fan community (anonymous Auth + Firestore) and the ad configuration (Realtime Database `ads_config`, read-only); no Analytics, Messaging or Crashlytics. Design and console setup: `docs/FIREBASE.md`, `docs/ADS.md`.
 - No premium purchases.
 - App name is Criczy, application id `com.criczy.app` (renamed from `app.criczy` on 18 Nov 2026, before any Play upload; packages and source folders match it). Never change it again once published.
 
@@ -33,7 +33,7 @@ Dependency direction: `app → core:data → core:network, core:analytics → co
 ## Commands
 
 ```bash
-./gradlew test                     # all 175 test runs, about 5 minutes
+./gradlew test                     # all 185 test runs, about 5 minutes
 ./gradlew :app:testDebugUnitTest   # UI tests only; screenshots go to app/build/screenshots
 ./gradlew :app:lintDebug
 ./gradlew :app:assembleDebug :app:assembleRelease :app:bundleRelease
@@ -89,6 +89,7 @@ $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-
 - Player recent form (`PlayerRepository.recentForm`, `playerMatchForm`) reads the scorecards of the last finished matches of the team the player was last seen with; unknown team means no form section.
 - Fan community (`feature/community`, `core/data/Community.kt`, `community/FirestoreCommunityBackend.kt`): username only, one feed per followed team (max 5, enforced in `FavouritesRepository.toggle`) plus All fans, opinions and polls, one post per 24 h, everything expires after 24 h. Match polls (`MatchPolls`) and match posts are described in `docs/FIREBASE.md`. Security rules live in `firebase/firestore.rules` and must be pasted into the console after any change. Tests use `UnavailableCommunityBackend` (UI) or `FakeCommunityBackend` (data); Robolectric never touches Firebase.
 - The Google Services plugin is applied only when `app/google-services.json` exists (CI builds without it), and is skipped for debug while the file has no `com.criczy.app.debug` client. A worktree needs the file copied in by hand.
+- Ads (`ads/`): `GoogleAds` behind `AdsBackend` (`NoAds` in tests, `PreviewAds` draws labelled placeholders for placement screenshots in `AdsTest`), provided as `LocalAds`. Each unit has its own object in Realtime Database `ads_config` (`parseAdsConfig`, cached on the phone); all caps live in the pure `AdsPolicy`. Debug builds always use Google's test unit ids; the AdMob app id comes from git-ignored `admob.properties` (sample id otherwise). Slots draw nothing until an ad loads; never place ads on live matches, the community, widgets or notifications. Placement table: `docs/ads/ad-placements.pdf`.
 - Widgets (`widget/`): Score (3×1), Live score (4×2) and Match centre (4×3) share one `WidgetData` snapshot: the pinned match first, then `pickWidgetMatch`. They update from `MatchAlertWorker` (15 min), the refresh button (`RefreshWidgetsAction`) and every 30 s while a match is pinned (`Widgets.onPinnedDetail`). Widgets tint white shapes with SRC_ATOP, so a translucent fill turns white: blend it with `over()`, never `copy(alpha)`. Each widget lays out by `LocalSize` (`SizeMode.Responsive`); `WidgetsTest` renders them through `GlanceRemoteViews` to `app/build/screenshots/widgets`, and the picker previews (`drawable-nodpi/widget_preview_*.webp`) are its `preview-*.png` (invented teams) saved as WebP.
 - Onboarding ends with `TeamPickerRoute` (up to 5 teams, saved as favourites). Pinning a live match (`LiveScoreService`, pin icon on the match screen) is a `specialUse` foreground service: the Play Console needs a foreground-service declaration for it before release.
 - A UI test that waits on a view model's Room write must pump the main looper inside `waitUntil` (`Thread.sleep(20); shadowOf(mainLooper).idle()`); a plain `waitUntil { done }` hangs.
@@ -126,7 +127,7 @@ What to build next, in order, with the API fields each idea uses: `docs/ROADMAP.
 2. Release builds are debug-signed until the owner adds `keystore.properties` (`docs/RELEASE.md`).
 3. Data licensing: the API, logos and photos belong to Cricket Australia; unresolved Google Play risk.
 4. The repository is public; the owner originally wanted it private.
-5. Deferred: ads, AI. Blocked by the data source: rankings, career statistics.
+5. Deferred: AI. Blocked by the data source: rankings, career statistics. Ads need the owner's AdMob account, unit ids in Realtime Database and `admob.properties` (`docs/ADS.md`, release checklist).
 6. Possible follow-ups: cache tournament leaderboards in Room; split `feature/*` into Gradle modules; upgrade to AGP 9.
 7. Store listing is ready (`docs/store/LISTING.md`, `docs/store/play/`). Waiting on the owner: a support email for `docs/PRIVACY_POLICY.md` and the listing, and turning on GitHub Pages (Settings → Pages → Source: GitHub Actions) so `.github/workflows/pages.yml` publishes `https://sgoldiy.github.io/criczy-/privacy.html`.
 8. On tablets the shot-replay ground (`BallGround` in the commentary feed) is as wide as the screen, so in landscape it runs off the bottom; the tablet store set avoids it. Cap its size when the owner asks.
