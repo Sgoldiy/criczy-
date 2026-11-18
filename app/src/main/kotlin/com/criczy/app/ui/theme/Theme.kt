@@ -1,5 +1,10 @@
 package com.criczy.app.ui.theme
 
+import android.app.Activity
+import android.content.ContextWrapper
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -85,6 +90,7 @@ fun CriczyTheme(
         dark -> DarkColors
         else -> LightColors
     }
+    SystemBarIcons(dark)
     CompositionLocalProvider(LocalCricketColors provides if (dark) DarkCricket else LightCricket) {
         MaterialTheme(colorScheme = scheme, typography = CriczyTypography, shapes = CriczyShapes, content = content)
     }
@@ -92,3 +98,22 @@ fun CriczyTheme(
 
 val cricketColors: CricketColors
     @Composable get() = LocalCricketColors.current
+
+/**
+ * White clock, battery and navigation icons on the dark theme, dark ones on the light theme. Follows the
+ * app's own theme setting: `enableEdgeToEdge()` alone follows the system's, which is wrong when they differ.
+ */
+@Composable
+private fun SystemBarIcons(dark: Boolean) {
+    val view = LocalView.current
+    if (view.isInEditMode) return
+    SideEffect {
+        var context = view.context
+        while (context !is Activity && context is ContextWrapper) context = context.baseContext
+        val window = (context as? Activity)?.window ?: return@SideEffect
+        WindowCompat.getInsetsController(window, view).apply {
+            isAppearanceLightStatusBars = !dark
+            isAppearanceLightNavigationBars = !dark
+        }
+    }
+}

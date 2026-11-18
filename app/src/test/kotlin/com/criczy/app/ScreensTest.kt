@@ -806,6 +806,22 @@ class ScreensTest {
     }
 
     @Test
+    fun `status bar icons follow the app theme, not the system's`() {
+        var dark by mutableStateOf(true)
+        lateinit var activity: android.app.Activity
+        compose.setContent {
+            activity = checkNotNull(androidx.activity.compose.LocalActivity.current)
+            com.criczy.app.ui.theme.CriczyTheme(if (dark) com.criczy.app.core.data.ThemeMode.DARK else com.criczy.app.core.data.ThemeMode.LIGHT) {}
+        }
+        fun lightIcons() = androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView).isAppearanceLightStatusBars
+        compose.waitForIdle()
+        assertTrue(!lightIcons(), "dark theme: white clock and battery")
+        dark = false
+        compose.waitForIdle()
+        assertTrue(lightIcons(), "light theme: dark clock and battery")
+    }
+
+    @Test
     fun `settings toggles report changes`() {
         var wickets: Boolean? = null
         compose.setCriczyContent {
