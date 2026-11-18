@@ -17,6 +17,7 @@ import com.criczy.app.CriczyApp
 import com.criczy.app.R
 import com.criczy.app.core.model.Match
 import com.criczy.app.core.model.MatchState
+import com.criczy.app.widget.Widgets
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -59,14 +60,23 @@ class LiveScoreService : Service() {
         val container = (application as CriczyApp).container
         val until = System.currentTimeMillis() + MAX_RUN_MS
         while (System.currentTimeMillis() < until) {
-            val match = try {
-                container.matches.detail(matchId)?.match
+            val detail = try {
+                container.matches.detail(matchId)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
                 null // Keep the last score and try again.
             }
-            if (match != null) {
+            val match = detail?.match
+            if (detail != null && match != null) {
+                // Home screen widgets show the pinned match, so they stay as live as this notification.
+                try {
+                    Widgets.onPinnedDetail(this, detail)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // A widget problem must never stop the pinned score.
+                }
                 val content = LiveScoreText.of(match)
                 val done = match.state == MatchState.COMPLETED
                 notify(build(this, matchId, content.title, content.text, content.subText, ongoing = !done))

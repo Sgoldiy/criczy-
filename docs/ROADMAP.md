@@ -92,7 +92,7 @@ back; the Analysis tab's line-and-length table stays.
 - **Daily "Today for you" notification (S)** for followed teams' matches.
 - **Share a moment (M):** the final frame of a ball replay or a result card as an image
   (`ScorecardImage` shows the pattern).
-- **More widgets (M):** "My team" (next or live match), several live matches.
+- **More widgets (M):** done (Nov 2026): Score, Live score and Match centre widgets for the pinned or followed match. Still open: several live matches in one widget.
 - **Launcher shortcuts and an in-app review prompt (S).**
 - **Tablets (M):** scorecard and commentary side by side in the match centre.
 

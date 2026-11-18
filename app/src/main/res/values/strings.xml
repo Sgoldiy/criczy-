@@ -1,5 +1,10 @@
 <resources>
     <string name="app_name">Criczy</string>
+    <string name="widget_loading">Criczy</string>
+    <string name="widget_score_name">Score</string>
+    <string name="widget_score_description">Just the score: the match you pinned or follow, or the top live match.</string>
     <string name="widget_name">Live score</string>
-    <string name="widget_description">The live match you follow, or the next one up.</string>
+    <string name="widget_description">Score, overs and the match situation, for the match you pinned or follow.</string>
+    <string name="widget_centre_name">Match centre</string>
+    <string name="widget_centre_description">Score, batters, bowler, this over and the run rates, for the match you pinned or follow.</string>
 </resources>

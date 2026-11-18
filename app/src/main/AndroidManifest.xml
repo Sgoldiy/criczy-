@@ -51,6 +51,16 @@
             </intent-filter>
         </activity>
 
+        <!-- Home screen widgets, smallest first: they appear in this order in the widget picker. -->
+        <receiver
+            android:name=".widget.ScoreWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_score_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_score_info" />
+        </receiver>
         <receiver
             android:name=".widget.LiveScoreWidgetReceiver"
             android:exported="true"
@@ -59,6 +69,15 @@
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/live_score_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.MatchCentreWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_centre_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_match_centre_info" />
         </receiver>
 
         <service

@@ -35,7 +35,7 @@ Lint reports 0 errors. Kotlin warnings are treated as errors in the pure-Kotlin 
 
 - **No run on a physical device or emulator.** The build environment has no emulator. Everything above runs on the JVM with Robolectric, which exercises real app code but not a real GPU, real touch input or real system services.
 - The release (minified) build was built and inspected (serializers, API interface, manifest and permissions are present) but never launched.
-- The widget's rendering, notification delivery, the share sheet, Custom Tabs and the splash screen were compiled and their logic is unit-tested, but they were not seen running.
+- The widgets are rendered through Glance's RemoteViews in `WidgetsTest` (PNGs in `app/build/screenshots/widgets`), but not on a launcher. Notification delivery, the share sheet, Custom Tabs and the splash screen were compiled and their logic is unit-tested, but they were not seen running.
 - Image loading from the provider's image host.
 
-Before publishing, install the release build on at least one phone and walk through: home, a live match for several minutes, commentary paging, analysis, share, follow a team, add the widget, toggle airplane mode.
+Before publishing, install the release build on at least one phone and walk through: home, a live match for several minutes, commentary paging, analysis, share, follow a team, add each of the three widgets (and resize them), pin a match and watch the widgets follow it, toggle airplane mode.

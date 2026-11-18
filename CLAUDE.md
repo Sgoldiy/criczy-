@@ -6,7 +6,7 @@ Read this before exploring. It records what is already known so it does not need
 
 Android cricket app (Kotlin, Jetpack Compose, Material 3) that replaces the owner's older app, Cricpeak (`Sgoldiy/CRICSCORE`, package `com.cricpeak.scorelive`). Do not modify that repository. Its audit is in `docs/CRICPEAK_AUDIT.md`; there is no need to read its code again.
 
-Status: feature-complete for v1.0.0 plus the fan community, match-day features, team picker, pinned live score and batting control; 155 test runs passing (core:data tests run for debug and release), lint clean, release APK and AAB build. Never run on a real device or emulator.
+Status: feature-complete for v1.0.0 plus the fan community, match-day features, team picker, pinned live score, batting control and three home screen widgets; 169 test runs, 160 passing and 9 skipped (the gated store renders and live API checks; core:data tests run for debug and release), lint clean, release APK and AAB build. Never run on a real device or emulator.
 
 ## Decisions already made by the owner (do not re-ask)
 
@@ -33,7 +33,7 @@ Dependency direction: `app → core:data → core:network, core:analytics → co
 ## Commands
 
 ```bash
-./gradlew test                     # all 112 tests, about 4 minutes
+./gradlew test                     # all 169 test runs, about 5 minutes
 ./gradlew :app:testDebugUnitTest   # UI tests only; screenshots go to app/build/screenshots
 ./gradlew :app:lintDebug
 ./gradlew :app:assembleDebug :app:assembleRelease :app:bundleRelease
@@ -88,6 +88,7 @@ $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-
 - Player recent form (`PlayerRepository.recentForm`, `playerMatchForm`) reads the scorecards of the last finished matches of the team the player was last seen with; unknown team means no form section.
 - Fan community (`feature/community`, `core/data/Community.kt`, `community/FirestoreCommunityBackend.kt`): username only, one feed per followed team (max 5, enforced in `FavouritesRepository.toggle`) plus All fans, opinions and polls, one post per 24 h, everything expires after 24 h. Match polls (`MatchPolls`) and match posts are described in `docs/FIREBASE.md`. Security rules live in `firebase/firestore.rules` and must be pasted into the console after any change. Tests use `UnavailableCommunityBackend` (UI) or `FakeCommunityBackend` (data); Robolectric never touches Firebase.
 - The Google Services plugin is applied only when `app/google-services.json` exists (CI builds without it), and is skipped for debug while the file has no `com.criczy.app.debug` client. A worktree needs the file copied in by hand.
+- Widgets (`widget/`): Score (3×1), Live score (4×2) and Match centre (4×3) share one `WidgetData` snapshot: the pinned match first, then `pickWidgetMatch`. They update from `MatchAlertWorker` (15 min), the refresh button (`RefreshWidgetsAction`) and every 30 s while a match is pinned (`Widgets.onPinnedDetail`). Widgets tint white shapes with SRC_ATOP, so a translucent fill turns white: blend it with `over()`, never `copy(alpha)`. Each widget lays out by `LocalSize` (`SizeMode.Responsive`); `WidgetsTest` renders them through `GlanceRemoteViews` to `app/build/screenshots/widgets`, and the picker previews (`drawable-nodpi/widget_preview_*.webp`) are its `preview-*.png` (invented teams) saved as WebP.
 - Onboarding ends with `TeamPickerRoute` (up to 5 teams, saved as favourites). Pinning a live match (`LiveScoreService`, pin icon on the match screen) is a `specialUse` foreground service: the Play Console needs a foreground-service declaration for it before release.
 - A UI test that waits on a view model's Room write must pump the main looper inside `waitUntil` (`Thread.sleep(20); shadowOf(mainLooper).idle()`); a plain `waitUntil { done }` hangs.
 - CI: `.github/workflows/checks.yml` runs tests, lint and a release build on every push and keeps the APK as the `criczy-release-apk` artifact.
@@ -126,6 +127,7 @@ What to build next, in order, with the API fields each idea uses: `docs/ROADMAP.
 4. The repository is public; the owner originally wanted it private.
 5. Deferred: ads, AI. Blocked by the data source: rankings, career statistics.
 6. Possible follow-ups: cache tournament leaderboards in Room; split `feature/*` into Gradle modules; upgrade to AGP 9.
+7. Store follow-ups the owner approved, to do next: fix the "Back of alength" chip text and re-render screenshot 3; write the Play short and full descriptions and What's new; tablet screenshots (7" and 10"); host the privacy policy on GitHub Pages (needs the owner's support email).
 
 ## Working efficiently
 
