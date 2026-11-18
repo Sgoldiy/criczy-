@@ -1,5 +1,9 @@
 package com.criczy.app
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.Drawable
 import androidx.compose.material3.Surface
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToNodeAction
@@ -27,6 +31,7 @@ import com.criczy.app.feature.match.CommentaryTab
 import com.criczy.app.feature.match.CommentaryUiState
 import com.criczy.app.feature.match.MatchActions
 import com.criczy.app.navigation.CriczyNavHost
+import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assume.assumeTrue
@@ -37,15 +42,17 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.io.File
 
 /**
  * Renders the screens used for the Play Store listing, with the captured responses rewritten so the
  * featured matches are India v Australia. Skipped unless run with `-Pstore=true`; the PNGs land in
- * app/build/screenshots/store and are framed with captions by docs/store/make_store_images.py.
+ * app/build/screenshots/store and are framed with captions by docs/store/make_store_images.js.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(qualifiers = "w411dp-h891dp-420dpi")
+// The same phone as the other UI tests at a higher density, so the zoomed callouts stay sharp.
+@Config(qualifiers = "w411dp-h891dp-560dpi")
 class StoreScreenshotsTest {
     @get:Rule
     val compose = createComposeRule()
@@ -63,6 +70,25 @@ class StoreScreenshotsTest {
     }
 
     private fun shot(name: String) = compose.screenshot("store/$name")
+
+    /** The launcher icon as Android draws it from the vector drawables, to check against docs/store/icon.svg. */
+    @Test
+    fun `0 launcher icon`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        fun save(name: String, size: Int, draw: (Canvas) -> Unit) {
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            draw(Canvas(bitmap))
+            File("build/screenshots/store").mkdirs()
+            File("build/screenshots/store/$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
+        fun Drawable.drawAt(canvas: Canvas, size: Int) = apply { setBounds(0, 0, size, size) }.draw(canvas)
+        val launcher = checkNotNull(context.getDrawable(R.mipmap.ic_launcher))
+        save("icon-launcher", 432) { launcher.drawAt(it, 432) }
+        val mono = checkNotNull(context.getDrawable(R.drawable.ic_launcher_monochrome)).mutate().apply { setTint(0xFF1B3A7A.toInt()) }
+        save("icon-themed", 432) { it.drawColor(0xFFD7E3FF.toInt()); mono.drawAt(it, 432) }
+        val stat = checkNotNull(context.getDrawable(R.drawable.ic_stat_criczy))
+        save("icon-notification", 96) { it.drawColor(0xFF11151C.toInt()); stat.drawAt(it, 96) }
+    }
 
     private fun launchApp() = compose.setCriczyContent { CriczyNavHost() }
 
@@ -120,10 +146,13 @@ class StoreScreenshotsTest {
     }
 
     @Test
-    fun `5 scorecard`() {
-        openT20()
+    fun `5 live scorecard`() {
+        launchApp()
+        compose.awaitText("India")
+        compose.onAllNodesWithText("India v Australia Tests", substring = true).onFirst().performClick()
+        compose.awaitText("Target")
         compose.onNodeWithText("Scorecard").performClick()
-        compose.awaitText("Josh Inglis")
+        compose.awaitText("Yashasvi Jaiswal")
         shot("5-scorecard")
     }
 
