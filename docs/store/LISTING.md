@@ -81,7 +81,7 @@ Welcome to Criczy: live scores, ball-by-ball commentary with shot replays, match
 ## Other listing fields
 
 - **Category:** Sports. **Tags:** cricket, live scores, sports news.
-- **Contact email:** the support email (required; it also goes into the privacy policy).
+- **Contact email:** mvsgondaliya@gmail.com (also in the privacy policy and the delete-account page).
 - **Website:** `https://sgoldiy.github.io/criczy-/` once GitHub Pages is on (see `docs/RELEASE.md`).
 - **Privacy policy URL:** `https://sgoldiy.github.io/criczy-/privacy.html`.
 

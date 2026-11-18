@@ -131,7 +131,7 @@ What to build next, in order, with the API fields each idea uses: `docs/ROADMAP.
 4. The repository is public; the owner originally wanted it private.
 5. Deferred: AI. Blocked by the data source: rankings, career statistics. Ads need the owner's AdMob account, unit ids in Realtime Database and `admob.properties` (`docs/ADS.md`, release checklist).
 6. Possible follow-ups: cache tournament leaderboards in Room; split `feature/*` into Gradle modules; upgrade to AGP 9.
-7. Store listing is ready (`docs/store/LISTING.md`, `docs/store/play/`). Waiting on the owner: a support email for `docs/PRIVACY_POLICY.md` and the listing, and turning on GitHub Pages (Settings → Pages → Source: GitHub Actions) so `.github/workflows/pages.yml` publishes `https://sgoldiy.github.io/criczy-/privacy.html`.
+7. Store listing is ready (`docs/store/LISTING.md`, `docs/store/play/`). Support email: mvsgondaliya@gmail.com (policy, delete-account page, listing). Waiting on the owner: turning on GitHub Pages (Settings → Pages → Source: GitHub Actions) so `.github/workflows/pages.yml` publishes `https://sgoldiy.github.io/criczy-/privacy.html`.
 
 ## Working efficiently
 

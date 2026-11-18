@@ -24,7 +24,7 @@ versions unless a task needs it.
 
 ## Waiting on the owner (remind, do not block)
 
-- Support email (privacy policy, delete-account page, listing). Until then the Pages workflow skips publishing.
+- Support email is set (mvsgondaliya@gmail.com); the site publishes once Pages is on.
 - GitHub → Settings → Pages → Source: GitHub Actions.
 - `keystore.properties` for release signing (`docs/RELEASE.md`).
 - Firebase Console: Anonymous auth, Firestore rules (`firebase/firestore.rules`, republish: they now allow account

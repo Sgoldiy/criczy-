@@ -18,4 +18,4 @@ Scores, favourites and settings stay on your phone; uninstalling the app removes
 
 Email the support address below from any email account, with your username, and the account is deleted within 7 days.
 
-Contact: add your support email here before publishing.
+Contact: [mvsgondaliya@gmail.com](mailto:mvsgondaliya@gmail.com)

@@ -46,4 +46,4 @@ The app is suitable for general audiences. The fan community is not directed at 
 
 If this policy changes, the updated version will be published with an app update. Contact details for questions are on the app's Google Play listing.
 
-Contact: add your support email here before publishing.
+Contact: [mvsgondaliya@gmail.com](mailto:mvsgondaliya@gmail.com)
