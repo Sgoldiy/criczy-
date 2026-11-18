@@ -23,3 +23,6 @@ google-services.json
 # Screenshot test output
 **/build/screenshots/
 dist/
+
+# Store asset bundle made for download
+Criczy-Play-Store.zip
