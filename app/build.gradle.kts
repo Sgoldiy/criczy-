@@ -74,7 +74,11 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
-            all { it.systemProperty("robolectric.graphicsMode", "NATIVE") }
+            all {
+                it.systemProperty("robolectric.graphicsMode", "NATIVE")
+                // Play Store screenshots are only rendered when asked for with -Pstore=true.
+                it.systemProperty("criczy.store", providers.gradleProperty("store").getOrElse("false"))
+            }
         }
     }
     // UI tests render screens with the API responses captured for the network module's tests.

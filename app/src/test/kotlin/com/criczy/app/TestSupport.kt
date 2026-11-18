@@ -24,8 +24,11 @@ import okhttp3.mockwebserver.RecordedRequest
 object FixtureServer {
     var offline = false
 
+    /** Applied to every fixture body; the store screenshots use it to swap in other teams and players. */
+    var rewrite: (String) -> String = { it }
+
     private fun fixture(name: String): MockResponse =
-        MockResponse().setBody(checkNotNull(javaClass.getResource("/fixtures/$name")) { name }.readText())
+        MockResponse().setBody(rewrite(checkNotNull(javaClass.getResource("/fixtures/$name")) { name }.readText()))
 
     val server: MockWebServer by lazy {
         MockWebServer().apply {

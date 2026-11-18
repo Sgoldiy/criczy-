@@ -113,6 +113,7 @@ Captured real responses for tests live in `core/network/src/test/resources/fixtu
 - Kotlin warnings are errors in the pure-Kotlin modules.
 - The launcher icon is vector only (`ic_launcher_foreground/background/monochrome.xml`); `ic_stat_criczy.xml` is the same mark in one colour. `docs/store/icon-512.png` is the Play listing icon, rendered from the same shapes.
 - Onboarding illustrations use invented teams (Lions, Hawks) on purpose; never put real teams or results in intro art.
+- Play Store images: `./gradlew :app:testDebugUnitTest -Pstore=true --tests '*StoreScreenshotsTest*'` renders the screens with the fixtures rewritten to India v Australia (`storeData`), then `node docs/store/make_store_images.js` writes captioned 1080×1920 screenshots and the 1024×500 feature graphic to `docs/store/play/` (banner icon from `docs/store/icon.svg`).
 - Never commit keys, `keystore.properties`, `google-services.json`, APKs or AABs.
 
 ## Open items
