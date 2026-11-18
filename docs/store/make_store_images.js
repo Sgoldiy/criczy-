@@ -252,7 +252,7 @@ const tabletSlides = [
   { name: '01-live-scores', shot: '1-home', kicker: 'Live scores', live: true, lines: ['Every match.', 'Live.'], sub: 'Tests, ODIs and T20s, ball by ball' },
   { name: '02-match-centre', shot: '2-match', kicker: 'Match centre', lines: ['Follow the', 'chase'], sub: 'Target, run rate and who is at the crease' },
   { name: '03-scorecard', shot: '3-scorecard', kicker: 'Scorecard', lines: ['Every run,', 'every wicket'], sub: 'Full scorecards, innings by innings' },
-  { name: '04-series', shot: '4-series', kicker: 'Series', lines: ['Every series,', 'one tap away'], sub: 'Tours and tournaments for men and women' },
+  { name: '04-series', shot: '4-series', kicker: 'Series', lines: ['Every series,', 'one tap away'], sub: 'Every tour and tournament' },
 ];
 
 function tabletHtml(t, prefix, TW, TH) {
