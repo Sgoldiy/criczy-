@@ -82,6 +82,12 @@ class FakeCommunityBackend(private val clock: () -> Long) : CommunityBackend {
     fun other(id: String, community: String, at: Long, author: String = "fan", kind: PostKind = PostKind.OPINION, options: List<String> = emptyList()) =
         CommunityPost(id, community, "uid-$author", author, "Post $id", kind, options, List(if (kind == PostKind.POLL) options.size else 2) { 0 }, 0, at, at + Communities.LIFETIME_MS)
             .also { posts += it }
+
+    var deletedAccount: Pair<String, List<String>>? = null
+    override suspend fun deleteAccount(username: String, myPosts: List<CommunityPost>) {
+        deletedAccount = username to myPosts.map { it.id }
+        this.username = null
+    }
 }
 
 @RunWith(RobolectricTestRunner::class)
@@ -111,6 +117,17 @@ class CommunityTest {
         assertEquals("kohli_fan", repo.claimUsername("kohli_fan").username)
         assertEquals("kohli_fan", repo.profile.first()?.username)
         assertEquals("kohli_fan", repo.connect()?.username)
+    }
+
+    @Test
+    fun `deleting the account removes my posts, my profile and my votes, and lets me join again`() = runTest {
+        repo.claimUsername("fan1")
+        repo.publish(PostDraft(Communities.ALL, "Great chase!", PostKind.OPINION))
+        repo.deleteAccount()
+        assertEquals("fan1" to listOf("p1"), backend.deletedAccount)
+        assertNull(repo.profile.first())
+        assertTrue(repo.feed(Communities.ALL).first().isEmpty())
+        assertNull(repo.connect(), "a new username has to be chosen")
     }
 
     @Test

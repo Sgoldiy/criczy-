@@ -138,6 +138,8 @@ interface CommunityBackend {
     suspend fun vote(post: CommunityPost, choice: Int)
     suspend fun report(post: CommunityPost)
     suspend fun delete(post: CommunityPost)
+    /** Deletes [myPosts], the username and profile, then the account itself. */
+    suspend fun deleteAccount(username: String, myPosts: List<CommunityPost>)
 }
 
 object UnavailableCommunityBackend : CommunityBackend {
@@ -151,6 +153,7 @@ object UnavailableCommunityBackend : CommunityBackend {
     override suspend fun vote(post: CommunityPost, choice: Int) = unavailable()
     override suspend fun report(post: CommunityPost) = unavailable()
     override suspend fun delete(post: CommunityPost) = unavailable()
+    override suspend fun deleteAccount(username: String, myPosts: List<CommunityPost>) = unavailable()
 }
 
 @Entity(tableName = "community_posts")
@@ -224,6 +227,15 @@ interface CommunityDao {
     @Query("SELECT * FROM community_profile WHERE slot = 0")
     suspend fun profile(): CommunityProfileEntity?
 
+    @Query("SELECT * FROM community_posts WHERE authorId = :uid")
+    suspend fun postsBy(uid: String): List<CommunityPostEntity>
+
+    @Query("DELETE FROM community_profile")
+    suspend fun clearProfile()
+
+    @Query("DELETE FROM community_votes")
+    suspend fun clearVotes()
+
     @Upsert
     suspend fun saveProfile(profile: CommunityProfileEntity)
 }
@@ -256,6 +268,19 @@ class CommunityRepository(
         val entity = CommunityProfileEntity(uid = user.uid, username = name, lastPostAt = user.lastPostAt, lastMatchPostAt = user.lastMatchPostAt)
         dao.saveProfile(entity)
         return entity.toModel()
+    }
+
+    /**
+     * Deletes the member's community account: their posts still on the server (those this phone knows of; any others
+     * expire within 24 hours anyway), username, profile and anonymous account, then the community data on this phone.
+     */
+    suspend fun deleteAccount() {
+        val profile = dao.profile() ?: return
+        val mine = dao.postsBy(profile.uid).map { it.toModel(null) }
+        backend.deleteAccount(profile.username, mine)
+        mine.forEach { dao.deletePost(it.id) }
+        dao.clearVotes()
+        dao.clearProfile()
     }
 
     suspend fun claimUsername(username: String): CommunityProfile {

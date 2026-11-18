@@ -14,6 +14,8 @@ plugins {
 val googleServices = file("google-services.json")
 if (googleServices.exists()) {
     apply(plugin = "com.google.gms.google-services")
+    // Crash reports (Crashlytics) also upload the release build's R8 mapping, so stack traces are readable.
+    apply(plugin = "com.google.firebase.crashlytics")
     if (!googleServices.readText().contains("\"com.criczy.app.debug\"")) {
         tasks.matching { it.name == "processDebugGoogleServices" }.configureEach { enabled = false }
     }
@@ -47,6 +49,8 @@ android {
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["admobAppId"] = admobAppId
+        // Crash reports from release builds only; debug crashes stay on the developer's machine.
+        manifestPlaceholders["crashReports"] = "true"
     }
 
     signingConfigs {
@@ -69,6 +73,7 @@ android {
         }
         debug {
             applicationIdSuffix = ".debug"
+            manifestPlaceholders["crashReports"] = "false"
         }
     }
     compileOptions {
@@ -135,6 +140,7 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.database)
+    implementation(libs.firebase.crashlytics)
     implementation(libs.play.services.ads)
     implementation(libs.ump)
     implementation(libs.kotlinx.coroutines.play.services)

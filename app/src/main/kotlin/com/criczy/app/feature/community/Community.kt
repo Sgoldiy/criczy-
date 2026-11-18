@@ -1,5 +1,7 @@
 package com.criczy.app.feature.community
 
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -148,6 +150,7 @@ class CommunityActions(
     val onDismissMessage: () -> Unit = {},
     val onRetry: () -> Unit = {},
     val onMatch: (Int) -> Unit = {},
+    val onDeleteAccount: () -> Unit = {},
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -261,6 +264,19 @@ class CommunityViewModel(private val container: AppContainer) : ViewModel() {
     fun report(post: CommunityPost) = guarded("Could not send the report.") { repo.report(post) }
     fun block(post: CommunityPost) = guarded("Could not block.") { repo.block(post) }
     fun delete(post: CommunityPost) = guarded("Could not delete the post.") { repo.delete(post) }
+    fun deleteAccount() = viewModelScope.launch {
+        local.update { it.copy(busy = true, message = null) }
+        try {
+            repo.deleteAccount()
+            fetched.clear()
+            local.update { it.copy(busy = false, phase = CommunityPhase.NEEDS_USERNAME, profile = null, message = "Your community account and posts were deleted.") }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            local.update { it.copy(busy = false, message = "Could not delete your account. Check your connection and try again.") }
+        }
+    }
+
     fun dismissMessage() = local.update { it.copy(message = null) }
 
     private fun guarded(failure: String, block: suspend () -> Unit) = viewModelScope.launch {
@@ -279,6 +295,7 @@ fun CommunityRoute(onMatch: (Int) -> Unit = {}) {
             onJoin = { vm.join(it) }, onSelect = vm::select, onRefresh = { vm.refresh() }, onPost = { vm.post(it) },
             onVote = { p, c -> vm.vote(p, c) }, onReport = { vm.report(it) }, onBlock = { vm.block(it) }, onDelete = { vm.delete(it) },
             onDismissMessage = vm::dismissMessage, onRetry = vm::connect, onMatch = onMatch,
+            onDeleteAccount = { vm.deleteAccount() },
         ),
     )
 }
@@ -451,6 +468,7 @@ private fun Composer(state: CommunityUiState, space: CommunitySpace, actions: Co
                     Icon(Icons.Outlined.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 IconButton(onClick = actions.onRefresh, enabled = !state.refreshing) { Icon(Icons.Outlined.Refresh, contentDescription = "Refresh posts") }
+                AccountMenu(state.profile?.username, actions.onDeleteAccount)
             }
             if (open && canPost) {
                 Spacer(Modifier.height(12.dp))
@@ -645,4 +663,31 @@ internal fun nextPostText(nextPostAt: Long?, now: Long): String {
     if (nextPostAt == null || nextPostAt <= now) return "You can post now"
     val minutes = (nextPostAt - now + 59_999) / 60_000
     return if (minutes >= 60) "Next post in ${minutes / 60}h ${minutes % 60}m" else "Next post in ${minutes}m"
+}
+
+/** The member's account: deleting it is always one menu away, as Google Play requires. */
+@Composable
+private fun AccountMenu(username: String?, onDelete: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    var confirm by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "Community account") }
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenuItem(text = { Text("Delete my community account") }, onClick = { menu = false; confirm = true })
+        }
+    }
+    if (confirm) {
+        AlertDialog(
+            onDismissRequest = { confirm = false },
+            title = { Text("Delete your community account?") },
+            text = {
+                Text(
+                    "This deletes ${username?.let { "@$it" } ?: "your username"}, your posts and your anonymous account straight away. " +
+                        "Votes and reports carry no name and disappear within 24 hours. Scores, favourites and settings are not affected. You can join again with a new username.",
+                )
+            },
+            confirmButton = { TextButton(onClick = { confirm = false; onDelete() }) { Text("Delete") } },
+            dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } },
+        )
+    }
 }

@@ -7,6 +7,7 @@ on:
     branches: [main]
     paths:
       - docs/PRIVACY_POLICY.md
+      - docs/DELETE_ACCOUNT.md
       - docs/store/make_site.py
       - docs/store/icon-512.png
       - .github/workflows/pages.yml
@@ -31,7 +32,7 @@ jobs:
       - id: policy
         name: Check the privacy policy has a contact
         run: |
-          if grep -q "add your support email here" docs/PRIVACY_POLICY.md; then
+          if grep -q "add your support email here" docs/PRIVACY_POLICY.md docs/DELETE_ACCOUNT.md; then
             echo "::warning::The privacy policy has no support email yet, so the site was not published."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else

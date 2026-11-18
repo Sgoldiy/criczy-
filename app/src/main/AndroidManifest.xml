@@ -54,6 +54,8 @@
         <!-- Home screen widgets, smallest first: they appear in this order in the widget picker. -->
         <!-- AdMob: the app id comes from admob.properties (Google's sample id otherwise). The two flags move
              SDK start-up and ad loading work off the main thread, so ads never make the app stutter. -->
+        <!-- Crash reports (Firebase Crashlytics): release builds only. -->
+        <meta-data android:name="firebase_crashlytics_collection_enabled" android:value="${crashReports}" />
         <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="${admobAppId}" />
         <meta-data android:name="com.google.android.gms.ads.flag.OPTIMIZE_INITIALIZATION" android:value="true" />
         <meta-data android:name="com.google.android.gms.ads.flag.OPTIMIZE_AD_LOADING" android:value="true" />

@@ -21,6 +21,8 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['uid'])
         && request.resource.data.uid == me()
         && getAfter(doc('users/' + me())).data.username.lower() == name;
+      // Deleting the account frees the name.
+      allow delete: if signedIn() && resource.data.uid == me();
     }
 
     match /users/{uid} {
@@ -38,6 +40,7 @@ service cloud.firestore {
           && (!(field in resource.data) || request.time > resource.data[field] + duration.value(gapHours, 'h'));
       }
       allow update: if signedIn() && me() == uid && (stamp('lastPostAt', 24) || stamp('lastMatchPostAt', 4));
+      allow delete: if signedIn() && me() == uid;
     }
 
     match /communities/{community}/posts/{postId} {

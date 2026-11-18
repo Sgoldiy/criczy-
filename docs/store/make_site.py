@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the public website that GitHub Pages serves: a landing page and the privacy policy.
+"""Builds the public website that GitHub Pages serves: a landing page, the privacy policy and how to delete an account.
 
   python3 docs/store/make_site.py <out-dir> [--draft]
 
@@ -16,6 +16,7 @@ import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 POLICY = os.path.join(ROOT, 'docs', 'PRIVACY_POLICY.md')
+DELETE = os.path.join(ROOT, 'docs', 'DELETE_ACCOUNT.md')
 ICON = os.path.join(ROOT, 'docs', 'store', 'icon-512.png')
 PLACEHOLDER = 'add your support email here'
 
@@ -110,20 +111,23 @@ def main():
         sys.exit(__doc__)
     out = args[0]
     policy = open(POLICY, encoding='utf-8').read()
-    if PLACEHOLDER in policy and '--draft' not in sys.argv:
+    deletion = open(DELETE, encoding='utf-8').read()
+    if (PLACEHOLDER in policy or PLACEHOLDER in deletion) and '--draft' not in sys.argv:
         sys.exit('docs/PRIVACY_POLICY.md still asks for a support email. Add it, then build again (or pass --draft to preview).')
     os.makedirs(out, exist_ok=True)
     shutil.copy(ICON, os.path.join(out, 'icon-512.png'))
     brand = '<a class="brand" href="./"><img src="icon-512.png" alt=""><b>CRIC<span>ZY</span></b></a>'
     with open(os.path.join(out, 'privacy.html'), 'w', encoding='utf-8') as f:
         f.write(page('Criczy privacy policy', 'How the Criczy cricket app handles your data.', brand + markdown(policy)))
+    with open(os.path.join(out, 'delete-account.html'), 'w', encoding='utf-8') as f:
+        f.write(page('Delete your Criczy account', 'How to delete your Criczy fan community account.', brand + markdown(deletion)))
     with open(os.path.join(out, 'index.html'), 'w', encoding='utf-8') as f:
         f.write(page('Criczy: live cricket scores', 'Live cricket scores, ball-by-ball commentary, shot replays and fan polls.', """
 <section class="hero">
 <img src="icon-512.png" alt="Criczy icon">
 <h1>CRIC<span>ZY</span></h1>
 <p>Live cricket scores, ball-by-ball commentary, shot replays and fan polls, for Android.</p>
-<div class="links"><a href="privacy.html">Privacy policy</a></div>
+<div class="links"><a href="privacy.html">Privacy policy</a><a href="delete-account.html">Delete your account</a></div>
 </section>"""))
     print('Wrote', ', '.join(sorted(os.listdir(out))), 'to', out)
 

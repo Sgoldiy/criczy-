@@ -1,5 +1,7 @@
 package com.criczy.app.feature.match
 
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.platform.LocalConfiguration
 import com.criczy.app.ads.AdUnit
 import com.criczy.app.ads.BannerAdSlot
 import com.criczy.app.core.analytics.BattingControl
@@ -439,7 +441,7 @@ internal fun OverReplayPanel(detail: MatchDetail, over: Over) {
                 targetState = showing,
                 transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(220)) },
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.align(Alignment.CenterHorizontally).fillMaxWidth().widthIn(max = 480.dp).padding(horizontal = 8.dp),
+                modifier = Modifier.align(Alignment.CenterHorizontally).widthIn(max = groundMaxWidth()).fillMaxWidth().padding(horizontal = 8.dp),
                 label = "overGround",
             ) { i ->
                 if (i < balls.size) {
@@ -609,7 +611,7 @@ private fun BallReplayPanel(detail: MatchDetail, ball: Ball) {
             }
             BallGround(
                 ball,
-                Modifier.align(Alignment.CenterHorizontally).fillMaxWidth().widthIn(max = 480.dp).padding(horizontal = 8.dp)
+                Modifier.align(Alignment.CenterHorizontally).widthIn(max = groundMaxWidth()).fillMaxWidth().padding(horizontal = 8.dp)
                     .clickable(onClickLabel = "Replay the ball") { replay++ },
                 animate = true, replayKey = replay,
             )
@@ -845,3 +847,10 @@ private fun PlayerFilterRow(ids: List<Int>, selected: Int?, name: (Int) -> Strin
         }
     }
 }
+
+/**
+ * The replay ground is square: no wider than 480dp, nor than half the screen's height, so on a landscape tablet the
+ * whole ground stays on screen below the match header. (widthIn must come before fillMaxWidth, or the full width wins.)
+ */
+@Composable
+internal fun groundMaxWidth(): Dp = minOf(480.dp, (LocalConfiguration.current.screenHeightDp * 0.5f).dp)

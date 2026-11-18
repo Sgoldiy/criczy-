@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
@@ -244,6 +245,20 @@ class ScreensTest {
         compose.onNodeWithText("Analysis").performScrollTo().performClick()
         compose.awaitText("WORM")
         compose.screenshot("match-analysis-tablet-dark")
+    }
+
+    @Test
+    @Config(qualifiers = TABLET)
+    fun `on a landscape tablet the whole replay ground fits on screen`() {
+        openFinishedMatch()
+        compose.onNodeWithText("Commentary").performScrollTo().performClick()
+        awaitGrounds()
+        compose.onNodeWithText("See shot · WICKET").performClick()
+        compose.waitUntil(5_000) { groundsShowing("wicket, Caught · bowler") == 1 }
+        val ground = compose.onNode(hasContentDescription("wicket, Caught · bowler", substring = true)).fetchSemanticsNode().boundsInRoot
+        val screen = compose.onRoot().fetchSemanticsNode().boundsInRoot
+        assertTrue(ground.height <= screen.height * 0.52f && ground.width <= screen.height * 0.52f, "ground $ground on screen $screen")
+        compose.screenshot("match-replay-tablet-dark")
     }
 
     @Test

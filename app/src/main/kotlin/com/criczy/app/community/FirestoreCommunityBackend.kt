@@ -168,6 +168,19 @@ class FirestoreCommunityBackend(context: Context) : CommunityBackend {
             .commit().await()
     }
 
+    override suspend fun deleteAccount(username: String, myPosts: List<CommunityPost>) {
+        val uid = auth.currentUser?.uid ?: return
+        // Posts first, while still signed in as their author (the rules allow only the author to delete).
+        myPosts.forEach { post -> runCatching { posts(post.community).document(post.id).delete().await() } }
+        db.batch()
+            .delete(db.collection("usernames").document(username.lowercase()))
+            .delete(user(uid))
+            .commit().await()
+        // An anonymous account needs no re-authentication to delete. Votes and reports keep only this now-unknown
+        // id and expire with their posts within 24 hours.
+        auth.currentUser?.delete()?.await()
+    }
+
     override suspend fun delete(post: CommunityPost) {
         posts(post.community).document(post.id).delete().await()
     }

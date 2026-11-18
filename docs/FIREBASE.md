@@ -40,3 +40,8 @@ Firestore. Nothing else from Firebase is included.
 not applied and the app builds with the community unavailable.
 
 Free (Spark) plan limits per day: 50,000 reads, 20,000 writes, 20,000 deletes.
+
+## Crashlytics and account deletion
+
+- Crashlytics: open Firebase Console → Crashlytics and enable it once. Only release builds send reports; the R8 mapping file uploads with each release build, so traces are readable.
+- Account deletion needs the current `firebase/firestore.rules` (they allow a member to delete their own `usernames/{name}` and `users/{uid}`): paste and Publish them again.
