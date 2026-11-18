@@ -202,11 +202,15 @@ class StoreScreenshotsTest {
         shot("$prefix-3-scorecard")
     }
 
-    private fun tabletAnalysis(prefix: String) {
-        openT20()
-        compose.onNodeWithText("Analysis").performScrollTo().performClick()
-        compose.awaitText("WORM")
-        shot("$prefix-4-analysis")
+    /** Top-level screens keep the tablet's navigation rail, unlike the match centre. */
+    private fun tabletBrowse(prefix: String) {
+        launchApp()
+        compose.awaitText("India")
+        compose.onAllNodesWithText("Series").onFirst().performClick()
+        compose.waitForIdle()
+        Thread.sleep(500)
+        compose.waitForIdle()
+        shot("$prefix-4-series")
     }
 
     @Test
@@ -215,7 +219,7 @@ class StoreScreenshotsTest {
 
     @Test
     @Config(qualifiers = TABLET_7)
-    fun `7 inch tablet, analysis`() = tabletAnalysis("tablet7")
+    fun `7 inch tablet, browse`() = tabletBrowse("tablet7")
 
     @Test
     @Config(qualifiers = TABLET_10)
@@ -223,7 +227,7 @@ class StoreScreenshotsTest {
 
     @Test
     @Config(qualifiers = TABLET_10)
-    fun `10 inch tablet, analysis`() = tabletAnalysis("tablet10")
+    fun `10 inch tablet, browse`() = tabletBrowse("tablet10")
 }
 
 private const val TABLET_7 = "w960dp-h600dp-xhdpi"

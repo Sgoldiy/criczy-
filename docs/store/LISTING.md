@@ -75,7 +75,7 @@ Welcome to Criczy: live scores, ball-by-ball commentary with shot replays, match
 | App icon (512 × 512) | `docs/store/icon-512.png` |
 | Feature graphic (1024 × 500) | `docs/store/play/feature-graphic.png` |
 | Phone screenshots (1080 × 1920), in this order | `docs/store/play/01-live-scores.png` … `06-fan-community.png` |
-| 7-inch tablet screenshots (1920 × 1080) | `docs/store/play/tablet-7in/01` … `04` |
+| 7-inch tablet screenshots (1920 × 1080) | `docs/store/play/tablet-7in/01` … `04` (live scores, match centre, scorecard, series) |
 | 10-inch tablet screenshots (2560 × 1440) | `docs/store/play/tablet-10in/01` … `04` |
 
 ## Other listing fields
